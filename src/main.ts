@@ -1,16 +1,13 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { ClawGame, CARRIAGE_Y, HUB_HH, HOLE, BIN_FLOOR_Y, PRIZE_TYPES, type Prize, type ClawState, type ContactPt, type GameEvent } from './physics.ts';
-import { buildMachine, buildRoom, M } from './models.ts';
+import { buildMachine, buildRoom, buildEnvScene, M } from './models.ts';
 import { buildPrize, disposePlush, setFurShells, type PlushModel } from './plush.ts';
-import { burstTexture } from './textures.ts';
 import { Sfx, vibrate } from './audio.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,124 +27,67 @@ const store = {
 const canvas = $<HTMLCanvasElement>('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x140b22);
-scene.fog = new THREE.Fog(0x140b22, 5, 11);
+scene.background = new THREE.Color(0x1d1a17);
+scene.fog = new THREE.Fog(0x1d1a17, 4, 10);
 const pmrem = new THREE.PMREMGenerator(renderer);
-const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const envTex = pmrem.fromScene(buildEnvScene(), 0.02).texture;
 scene.environment = envTex;
-scene.environmentIntensity = 0.75;
+scene.environmentIntensity = 0.5;
 
-const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 30);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 30);
 const controls = new OrbitControls(camera, canvas);
 controls.enablePan = false; controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minAzimuthAngle = -1.25; controls.maxAzimuthAngle = 1.25;
-controls.minPolarAngle = 0.5; controls.maxPolarAngle = 1.55; controls.rotateSpeed = 0.6;
+controls.minAzimuthAngle = -1.0; controls.maxAzimuthAngle = 1.0;
+controls.minPolarAngle = 0.55; controls.maxPolarAngle = 1.62; controls.rotateSpeed = 0.55;
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
 controls.enabled = false;
 
-// lights
-scene.add(new THREE.HemisphereLight(0xcfc4ff, 0x2a1638, 0.35));
-const sun = new THREE.DirectionalLight(0xfff3e6, 1.9);
-sun.position.set(0.08, 3.2, 0.25); scene.add(sun, sun.target);
+// lights: dim warm mall ceiling + the cabinet's own cool-white tubes
+scene.add(new THREE.HemisphereLight(0xffe6c8, 0x2a2420, 0.35));
+const sun = new THREE.DirectionalLight(0xeef3ff, 1.7); // the cabinet tubes, as a shadow-casting key
+sun.position.set(0.05, 3.2, 0.35); scene.add(sun, sun.target);
 sun.castShadow = true;
 Object.assign(sun.shadow.camera, { left: -0.62, right: 0.62, top: 0.55, bottom: -0.55, near: 1.6, far: 4 });
-sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.012; sun.shadow.radius = 3;
-const fill = new THREE.DirectionalLight(0xffd6ef, 0.8); fill.position.set(-1.5, 1.2, 3); scene.add(fill);
-const rim = new THREE.PointLight(0x6fd8ff, 3, 4, 2); rim.position.set(1.2, 1.4, -0.8); scene.add(rim);
-const inner = new THREE.SpotLight(0xfff0f8, 4, 2.2, 0.95, 0.7, 1.5); inner.position.set(0, 1.18, 0.15); scene.add(inner, inner.target);
-const winLight = new THREE.PointLight(0xff5fb0, 0, 1.6, 2); winLight.position.set(HOLE.x0 + 0.14, 0.35, 0.5); scene.add(winLight);
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.012; sun.shadow.radius = 4;
+const fill = new THREE.DirectionalLight(0xffd8ae, 0.75); fill.position.set(-0.8, 2.6, 3.2); scene.add(fill);
+const inner = new THREE.SpotLight(0xf3f6ff, 2.4, 2.2, 1.0, 0.8, 1.5); inner.position.set(0, 1.17, 0.3); scene.add(inner, inner.target);
+const doorLight = new THREE.PointLight(0xffb060, 0, 0.5, 2); doorLight.position.set(-0.36, -0.48, 0.44); scene.add(doorLight);
 
-// aim laser
-const aim = new THREE.Mesh(new THREE.CircleGeometry(0.016, 24), new THREE.MeshBasicMaterial({ color: 0xff2050, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+// laser aiming dot (many newer machines have one); no beam
+const aim = new THREE.Mesh(new THREE.CircleGeometry(0.0065, 16), new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
 aim.rotation.x = -Math.PI / 2; aim.renderOrder = 5; scene.add(aim);
-const beamGeo = new THREE.CylinderGeometry(0.0016, 0.0016, 1, 6); beamGeo.translate(0, 0.5, 0);
-const laser = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xff2050, transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false })); scene.add(laser);
 
 // world
 scene.add(buildRoom());
 const machine = buildMachine(); scene.add(machine.root);
+{ const bin = new THREE.Mesh(new THREE.BoxGeometry(0.238, 0.04, 0.27), new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 })); bin.position.set(machine.doorPos.x, BIN_FLOOR_Y - 0.021, 0.35); bin.receiveShadow = true; scene.add(bin); }
 machine.root.traverse((o) => { o.castShadow = false; });
 for (const o of [machine.beam, machine.carriage, machine.hub, machine.cable, ...machine.prongs]) o.traverse((c) => { c.castShadow = true; });
 
-// ---------------- win overlay (rendered on top of the main frame) ----------------
-const ovScene = new THREE.Scene();
-ovScene.environment = envTex;
-const ovCam = new THREE.PerspectiveCamera(40, 1, 0.05, 10);
-ovScene.add(new THREE.HemisphereLight(0xffffff, 0x553366, 1.2));
-const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(0.6, 1, 1.2); ovScene.add(key);
-const dim = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshBasicMaterial({ color: 0x0a0414, transparent: true, opacity: 0, depthWrite: false }));
-dim.position.z = -3; ovScene.add(dim);
-const burst = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: burstTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0 }));
-burst.position.set(0, 0.06, -1.3); ovScene.add(burst);
-const CONF = 180;
-const confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.022, 0.012), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }), CONF);
-confetti.frustumCulled = false; ovScene.add(confetti);
-const conf = Array.from({ length: CONF }, () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3(), life: 0 }));
-const confColors = [0xff4f9a, 0xffd34d, 0x5ff4ff, 0x9b7bff, 0x6dff9c, 0xffffff].map((c) => new THREE.Color(c));
-conf.forEach((_, i) => confetti.setColorAt(i, confColors[i % confColors.length]));
-const ov = { active: false, t: 0, model: null as PlushModel | null };
-function launchConfetti() {
-  const hw = Math.tan(THREE.MathUtils.degToRad(20)) * 1.1 * ovCam.aspect;
-  conf.forEach((c, i) => {
-    const side = i % 2 ? 1 : -1;
-    c.p.set(side * hw * 1.05, -0.45, -1.1 + Math.random() * 0.2);
-    c.v.set(-side * (0.15 + Math.random() * 0.5) * hw * 3, 1.3 + Math.random() * 1.1, (Math.random() - 0.5) * 0.3);
-    c.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); c.w.set(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6);
-    c.life = 3 + Math.random() * 1.5;
-  });
-}
+// ---------------- win: prize drops into the pickup window, lamp blinks, a plain card ----------------
+let winNo = 0, doorBlink = 0, doorHold = 0, doorCam = 0;
 function showWin(prize: Prize) {
-  if (ov.model) { ovScene.remove(ov.model.group); disposePlush(ov.model); }
-  const m = buildPrize(prize.type, prize.color); m.u.uFloorY.value = -100;
-  ov.model = m; ovScene.add(m.group);
-  ov.active = true; ov.t = 0;
-  launchConfetti();
-  $('winName').textContent = prize.type.name;
-  $('winEmoji').textContent = prize.type.emoji;
-  $('winSub').textContent = `已放入战利品袋 · 共收集 ${bagCount()} 个`;
+  winNo++;
+  $('winNo').textContent = `第 ${bagCount()} 个`;
+  $('winName').textContent = `${prize.type.name} · ${prize.colorName}`;
+  $('winSub').textContent = '已掉进取物口，记得拿走';
   $('win').classList.add('show');
+  goDoor(); doorCam = 3.5;
 }
-function hideWin() { $('win').classList.remove('show'); ov.active = false; }
+function hideWin() { $('win').classList.remove('show'); if (viewIdx < 0) { doorCam = 0; goView(0); } }
 $('winOk').addEventListener('click', () => { sfx.click(); hideWin(); });
-const cMtx = new THREE.Matrix4(), cQ = new THREE.Quaternion(), cS = new THREE.Vector3(1, 1, 1);
-function updateOverlay(dt: number) {
-  if (!ov.active && ov.t <= 0) return false;
-  ov.t += dt;
-  const fadeIn = Math.min(1, ov.t / 0.4);
-  (dim.material as THREE.MeshBasicMaterial).opacity = 0.55 * fadeIn * (ov.active ? 1 : 0);
-  (burst.material as THREE.MeshBasicMaterial).opacity = 0.85 * fadeIn;
-  burst.rotation.z += dt * 0.6; burst.scale.setScalar(0.9 + 0.06 * Math.sin(ov.t * 3));
-  if (ov.model) {
-    const k = Math.min(1, ov.t / 0.7); const pop = 1 + Math.sin(k * Math.PI) * 0.25 * (1 - k); const e = 1 - Math.pow(1 - k, 3);
-    const vt = Math.tan(THREE.MathUtils.degToRad(ovCam.fov / 2)) * 1.1;
-    const sc = Math.min((0.62 * 2 * vt * ovCam.aspect) / 0.11, (0.42 * 2 * vt) / 0.15) * e * pop;
-    ov.model.group.scale.setScalar(sc);
-    ov.model.group.position.set(0, 0.07 + Math.sin(ov.t * 2) * 0.012 - 0.035 * sc, -1.1);
-    ov.model.group.rotation.set(0.15, ov.t * 1.4, Math.sin(ov.t * 1.7) * 0.08);
-    const s = Math.sin(ov.t * 9) * Math.exp(-ov.t * 1.2) * 0.12; ov.model.u.uSquash.value.set(0, 1, 0, s);
-  }
-  for (let i = 0; i < CONF; i++) {
-    const c = conf[i]; c.life -= dt;
-    c.v.y -= 1.6 * dt; c.v.multiplyScalar(Math.exp(-1.4 * dt));
-    c.p.addScaledVector(c.v, dt); c.p.x += Math.sin(ov.t * 5 + i) * 0.04 * dt;
-    c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
-    cS.setScalar(c.life > 0 ? 1 : 0);
-    confetti.setMatrixAt(i, cMtx.compose(c.p, cQ.setFromEuler(c.r), cS));
-  }
-  confetti.instanceMatrix.needsUpdate = true;
-  if (!ov.active) { ov.t = 0; return false; }
-  return true;
-}
 
 // ---------------- post-processing / quality ----------------
 const QUALITY = ['低', '中', '高'];
 let quality = Number(params.get('q') ?? localStorage.getItem('claw_q') ?? (isTouch ? 1 : 2));
 let composer: EffectComposer | null = null;
+let grain: ShaderPass | null = null;
 function applyQuality() {
   const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][quality]);
   renderer.setPixelRatio(dpr);
@@ -161,42 +101,61 @@ function applyQuality() {
     composer = new EffectComposer(renderer, rt);
     composer.setPixelRatio(dpr);
     composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(new ShaderPass({ // sanitize HDR buffer (NaN/Inf guard) before bloom
-      uniforms: { tDiffuse: { value: null } },
-      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c.rgb)) || any(isinf(c.rgb))) c.rgb = vec3(0.0); gl_FragColor = vec4(clamp(c.rgb, 0.0, 12.0), 1.0); }',
-    }));
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.5, 0.3, 2.6));
     composer.addPass(new OutputPass());
-  }
+    grain = new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uT: { value: 0 }, uAmt: { value: 0.035 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uT; uniform float uAmt; varying vec2 vUv;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uT) * 43758.5453); }
+        void main(){ vec4 c = texture2D(tDiffuse, vUv);
+          vec2 q = vUv - 0.5; float v = 1.0 - dot(q, q) * 0.55;
+          c.rgb *= v; c.rgb += (h(gl_FragCoord.xy) - 0.5) * uAmt;
+          gl_FragColor = vec4(c.rgb, 1.0); }`,
+    });
+    composer.addPass(grain);
+  } else grain = null;
   $('q').textContent = QUALITY[quality];
   resize();
 }
 
-// camera framing
-const target = new THREE.Vector3(0, 0.78, 0);
+// camera framing: like a person standing in front of the machine. The visible 3D area is between the
+// LED board and the control deck, so the projection is shifted to centre the cabinet in that window.
+const target = new THREE.Vector3(0, 0.6, 0);
+const BOARD = 50, DECK = 150;
 let views: { az: number; pol: number; dist: number }[] = [];
 let viewIdx = 0;
-let camAnim: { from: THREE.Spherical; to: THREE.Spherical; t: number } | null = null;
+let camAnim: { p0: THREE.Vector3; t0: THREE.Vector3; p1: THREE.Vector3; t1: THREE.Vector3; t: number; dur: number } | null = null;
+let visFrac = 1;
 function fitDist() {
   const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  return Math.max(0.7 / (vt * camera.aspect), 1.2 / vt);
+  return Math.max(0.6 / (vt * camera.aspect), 0.78 / (vt * visFrac));
 }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
-  camera.aspect = w / h; camera.updateProjectionMatrix();
-  ovCam.aspect = w / h; ovCam.updateProjectionMatrix();
+  camera.aspect = w / h;
+  const top = BOARD, bot = DECK; visFrac = Math.max(0.4, (h - top - bot) / h);
+  camera.setViewOffset(w, h, 0, (bot - top) / 2, w, h);
+  camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
   composer?.setSize(w, h);
   const d = fitDist();
-  views = [{ az: 0, pol: 1.22, dist: d }, { az: 0.95, pol: 1.15, dist: d * 1.2 }, { az: 0.0, pol: 0.62, dist: d * 0.86 }];
-  controls.minDistance = d * 0.45; controls.maxDistance = d * 1.35;
+  views = [{ az: 0, pol: 1.36, dist: d }, { az: -0.62, pol: 1.3, dist: d * 1.02 }, { az: 0.0, pol: 0.72, dist: d * 0.9 }];
+  controls.minDistance = d * 0.5; controls.maxDistance = d * 1.3;
 }
+function animCam(p1: THREE.Vector3, t1: THREE.Vector3, dur = 0.9) { camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1, t1, t: 0, dur }; }
 function goView(i: number, instant = false) {
   viewIdx = i; const v = views[i];
-  const to = new THREE.Spherical(v.dist, v.pol, v.az);
-  if (instant) { camera.position.setFromSpherical(to).add(target); camera.lookAt(target); controls.update(); return; }
-  camAnim = { from: new THREE.Spherical().setFromVector3(camera.position.clone().sub(target)), to, t: 0 };
+  const p = new THREE.Vector3().setFromSpherical(new THREE.Spherical(v.dist, v.pol, v.az)).add(target);
+  if (instant) { controls.target.copy(target); camera.position.copy(p); camera.lookAt(target); controls.update(); return; }
+  animCam(p, target.clone());
+}
+/** crouch a little and look at the pickup window */
+function goDoor() {
+  viewIdx = -1;
+  const t = new THREE.Vector3(machine.doorPos.x + 0.08, -0.52, 0.36);
+  const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const d = Math.max(0.32 / (vt * camera.aspect), 0.34 / (vt * visFrac));
+  animCam(new THREE.Vector3(t.x + d * 0.1, t.y + d * 0.16, t.z + d * 0.98), t, 1.1);
 }
 window.addEventListener('resize', resize);
 
@@ -207,35 +166,45 @@ const models = new Map<number, PlushModel>();
 let timeLeft = 0, lastTick = 99, intro = true;
 let coins = store.coins;
 const ui = {
-  coins: $('coins').querySelector('b')!, timer: $('timer').querySelector('b')!, bag: $('bag').querySelector('b')!,
-  insert: $<HTMLButtonElement>('insert'), grab: $<HTMLButtonElement>('grab'), joy: $('joy'), knob: $('knob'), status: $('status'), toast: $('toast'), ring: $('ring'),
+  coins: $('coins').querySelector('.digits') as HTMLElement, timer: $('timer').querySelector('.digits') as HTMLElement, bag: $('bag').querySelector('.digits') as HTMLElement,
+  insert: $<HTMLButtonElement>('insert'), grab: $<HTMLButtonElement>('grab'), joy: $('joy'), knob: $('knob'), status: $('status'), toast: $('toast'),
 };
+// 7-segment LED digits
+const SEGS = ['a', 'b', 'c', 'd1', 'e', 'f', 'g'];
+const DIG: Record<string, string> = { '0': 'abcd1ef', '1': 'bc', '2': 'abd1eg', '3': 'abcd1g', '4': 'bcfg', '5': 'acd1fg', '6': 'acd1efg', '7': 'abc', '8': 'abcd1efg', '9': 'abcd1fg', '-': 'g', ' ': '' };
+function initSeg(el: HTMLElement, n: number) { el.innerHTML = Array.from({ length: n }, () => `<i class="d">${SEGS.map((c) => `<s class="${c}"></s>`).join('')}</i>`).join(''); }
+const segCache = new Map<HTMLElement, string>();
+function setSeg(el: HTMLElement, v: string) {
+  if (segCache.get(el) === v) return; segCache.set(el, v);
+  const ds = el.children; const str = v.padStart(ds.length, ' ').slice(-ds.length);
+  for (let i = 0; i < ds.length; i++) { const on = DIG[str[i]] ?? ''; for (const s of Array.from(ds[i].children)) s.classList.toggle('on', on.split(/(?=[a-g])/).includes(s.className.replace(' on', ''))); }
+}
+initSeg(ui.coins, 2); initSeg(ui.timer, 2); initSeg(ui.bag, 2);
 let toastT = 0;
-function toast(html: string, lose = false, dur = 2.2) { ui.toast.innerHTML = html; ui.toast.classList.toggle('lose', lose); ui.toast.classList.add('show'); toastT = dur; }
+function toast(html: string, _lose = false, dur = 2.2) { ui.toast.innerHTML = html; ui.toast.classList.add('show'); toastT = dur; }
 function status(text: string) { if (text) ui.status.textContent = text; ui.status.classList.toggle('show', !!text); }
 function bagCount() { return Object.values(store.bag).reduce((a, b) => a + b, 0); }
 function refreshUI() {
-  ui.coins.textContent = String(coins);
-  ui.bag.textContent = String(bagCount());
+  setSeg(ui.coins, String(Math.min(99, coins)));
+  setSeg(ui.bag, String(Math.min(99, bagCount())));
   const st = game?.state ?? 'idle';
   const idle = st === 'idle', play = st === 'play';
   ui.insert.classList.toggle('gone', !idle);
-  ui.insert.firstChild!.textContent = coins > 0 ? '投币开始' : '免费领 10 币';
-  ui.grab.classList.toggle('gone', idle);
+  ui.insert.querySelector('em')!.textContent = coins > 0 ? '投币' : '领币';
+  ui.insert.querySelector('small')!.textContent = coins > 0 ? '1币1局' : '送10币';
   ui.grab.classList.toggle('disabled', !play);
   ui.joy.classList.toggle('disabled', !play);
-  if (!play) { ui.timer.textContent = '--'; ui.ring.style.setProperty('--p', '1'); }
+  if (!play) setSeg(ui.timer, '--');
   $('timer').classList.remove('warn');
-  status({ idle: '', play: '移动爪子，对准娃娃后按「抓!」', descend: '下爪中…', close: '抓紧!', lift: '上升中…', hold: '上升中…', return: '送往出口…', release: '松爪', reset: '' }[st]);
+  status({ idle: coins > 0 ? '请投币' : '币用完了，点「领币」', play: '移动摇杆，按红色按钮下爪', descend: '', close: '', lift: '', hold: '', return: '', release: '', reset: '' }[st]);
 }
 function insertCoin() {
   sfx.unlock();
   if (game.state !== 'idle') return;
   hideWin();
-  if (coins <= 0) { coins = 10; store.coins = coins; sfx.coin(); toast('🎁 送你 10 个币!', false, 1.6); refreshUI(); return; }
+  if (coins <= 0) { coins = 10; store.coins = coins; sfx.coin(); toast('已赠送 10 币', false, 1.6); refreshUI(); return; }
   coins--; store.coins = coins;
   sfx.coin(); vibrate(30);
-  $('coins').classList.remove('bump'); void $('coins').offsetWidth; $('coins').classList.add('bump');
   game.startRound(); timeLeft = ROUND_TIME; lastTick = 99;
   refreshUI();
 }
@@ -258,6 +227,7 @@ function joyMove(e: PointerEvent) {
   const k = m < dead ? 0 : (m - dead) / (1 - dead) / m;
   joy.x = nx * k; joy.y = ny * k;
 }
+ui.grab.addEventListener('pointerdown', () => { if (game.state === 'idle' && !intro) { sfx.click(); status('请先投币'); } });
 ui.joy.addEventListener('pointerdown', (e) => { joy.id = e.pointerId; ui.joy.setPointerCapture(e.pointerId); joyMove(e); vibrate(8); e.preventDefault(); });
 ui.joy.addEventListener('pointermove', (e) => { if (e.pointerId === joy.id) joyMove(e); });
 const joyEnd = (e: PointerEvent) => { if (e.pointerId !== joy.id) return; joy.id = -1; joy.x = joy.y = 0; ui.knob.style.transform = ''; };
@@ -278,40 +248,39 @@ function readKeys() {
 }
 
 // tool buttons
-$('snd').addEventListener('click', () => { sfx.unlock(); sfx.setMuted(!sfx.muted); $('snd').textContent = sfx.muted ? '🔇' : '🔊'; });
+$('snd').addEventListener('click', () => { sfx.unlock(); sfx.setMuted(!sfx.muted); $('snd').classList.toggle('off', sfx.muted); });
 $('cam').addEventListener('click', () => { sfx.click(); goView((viewIdx + 1) % views.length); });
-$('q').addEventListener('click', () => { quality = (quality + 1) % 3; localStorage.setItem('claw_q', String(quality)); autoQ = false; applyQuality(); toast(`画质: ${QUALITY[quality]}`, true, 1.0); });
+$('q').addEventListener('click', () => { quality = (quality + 1) % 3; localStorage.setItem('claw_q', String(quality)); autoQ = false; applyQuality(); toast(`画质：${QUALITY[quality]}`, true, 1.0); });
 $('bag').addEventListener('click', () => {
   const bag = store.bag; const list = $('bagList'); list.innerHTML = '';
-  for (const t of PRIZE_TYPES) { const n = bag[t.id] ?? 0; const d = document.createElement('div'); d.className = 'it' + (n ? '' : ' none'); d.innerHTML = `<span>${t.emoji}</span>${t.name}<b>× ${n}</b>`; list.appendChild(d); }
+  for (const t of PRIZE_TYPES) { const n = bag[t.id] ?? 0; const d = document.createElement('div'); d.className = 'it' + (n ? '' : ' none'); d.innerHTML = `<span>${t.name}</span><b>${n}</b>`; list.appendChild(d); }
   $('drawer').classList.remove('hidden');
 });
 $('closeBag').addEventListener('click', () => $('drawer').classList.add('hidden'));
 
 // ---------------- events ----------------
-let winFlash = 0, lastThud = 0;
+let lastThud = 0;
 function onEvent(e: GameEvent) {
   switch (e.type) {
-    case 'spawn': { const m = buildPrize(e.prize.type, e.prize.color); models.set(e.prize.uid, m); scene.add(m.group); break; }
+    case 'spawn': { const m = buildPrize(e.prize.type, e.prize.color, e.prize.seed); m.group.scale.setScalar(e.prize.scale); models.set(e.prize.uid, m); scene.add(m.group); break; }
     case 'remove': { const m = models.get(e.prize.uid); if (m) { scene.remove(m.group); disposePlush(m); models.delete(e.prize.uid); } break; }
     case 'win': {
       const bag = store.bag; bag[e.prize.type.id] = (bag[e.prize.type.id] ?? 0) + 1; store.bag = bag;
-      sfx.chute(); vibrate([60, 40, 60, 40, 200]); winFlash = 4;
-      setTimeout(() => { sfx.win(); sfx.confetti(); showWin(e.prize); }, 350);
+      sfx.chute(); vibrate([40, 60, 120]); doorBlink = 3.2; doorHold = 12;
+      setTimeout(() => { sfx.win(); showWin(e.prize); }, 450);
       refreshUI(); break;
     }
     case 'impact': if (e.strength > 0.8 && game.time - lastThud > 0.08) { lastThud = game.time; sfx.thud(e.strength); } break;
     case 'clank': sfx.clank(); vibrate(25); break;
     case 'state': refreshUI(); break;
     case 'roundEnd':
-      if (!e.won) { sfx.lose(); toast(['差一点点!', '爪子松了… 再来!', '好可惜! 再试一次', '换个角度试试?'][Math.floor(Math.random() * 4)], true, 2); }
+      if (!e.won) { sfx.lose(); toast(['没抓住', '滑掉了', '差一点'][Math.floor(Math.random() * 3)], true, 1.6); }
       refreshUI(); break;
   }
 }
 
 // ---------------- sync visuals ----------------
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), invQ = new THREE.Quaternion(), down = new THREE.Vector3(0, -1, 0);
-const bulbColor = new THREE.Color();
 const contacts = new Map<Prize, ContactPt[]>();
 function inHole(x: number, z: number) { return x < HOLE.x1 + 0.03 && z > HOLE.z0 - 0.03; }
 function syncVisuals(dt: number, t: number) {
@@ -337,7 +306,7 @@ function syncVisuals(dt: number, t: number) {
       let n = 0;
       for (const c of cs) {
         if (n >= 3) break;
-        tmpV2.set(c.x - tr.x, c.y - tr.y, c.z - tr.z).applyQuaternion(invQ);
+        tmpV2.set(c.x - tr.x, c.y - tr.y, c.z - tr.z).applyQuaternion(invQ).divideScalar(p.scale);
         let dup = false; for (let j = 0; j < n; j++) if (Math.hypot(dents[j].x - tmpV2.x, dents[j].y - tmpV2.y, dents[j].z - tmpV2.z) < 0.015) dup = true;
         if (dup) continue;
         const w = Math.min(0.012, 0.004 + c.imp * 0.6);
@@ -354,26 +323,16 @@ function syncVisuals(dt: number, t: number) {
   const hubTop = tmpV2.set(0, HUB_HH + 0.03, 0).applyQuaternion(machine.hub.quaternion).add(machine.hub.position);
   const dir = hubTop.sub(top); const len = dir.length();
   machine.cable.position.copy(top); machine.cable.quaternion.setFromUnitVectors(down, dir.normalize()); machine.cable.scale.set(1, len, 1);
-  // marquee + LEDs
-  const n = machine.bulbs.count; const chase = Math.floor(t * 9);
-  for (let i = 0; i < n; i++) {
-    if (winFlash > 0) bulbColor.setHSL((i * 0.05 + t * 2) % 1, 1, Math.floor(t * 12) % 2 ? 0.75 : 0.25);
-    else bulbColor.setHSL((i / n + t * 0.08) % 1, 0.9, (i + chase) % 4 === 0 ? 0.8 : 0.32);
-    machine.bulbs.setColorAt(i, bulbColor.multiplyScalar(5));
-  }
-  machine.bulbs.instanceColor!.needsUpdate = true;
-  M.ledPink.emissive.setHSL((0.9 + Math.sin(t * 0.7) * 0.08) % 1, 1, 0.55);
-  M.ledPink.emissiveIntensity = winFlash > 0 ? 6 + 6 * Math.abs(Math.sin(t * 20)) : 5;
-  M.ledCyan.emissiveIntensity = 4.5 + Math.sin(t * 3) * 1.2;
-  winLight.intensity = winFlash > 0 ? 3 * Math.abs(Math.sin(t * 10)) : 0;
-  winFlash = Math.max(0, winFlash - dt);
+  // pickup-window lamp: blinks after a win, then stays on softly while a prize sits there
+  const blinkOn = doorBlink > 0 ? (Math.floor(t * 6) % 2 ? 1 : 0.08) : doorHold > 0 ? 0.55 : 0.05;
+  M.doorLamp.emissiveIntensity = blinkOn * 3.5;
+  doorLight.intensity = blinkOn * 0.35;
+  doorBlink = Math.max(0, doorBlink - dt); doorHold = Math.max(0, doorHold - dt);
+  // the fluorescent tubes have a barely visible 50 Hz-ish shimmer
+  M.tube.emissiveIntensity = 2.6 + Math.sin(t * 13.1) * 0.03 + Math.sin(t * 2.3) * 0.02;
   const showAim = game.state === 'play';
-  aim.visible = laser.visible = showAim;
-  if (showAim) {
-    const sy = game.probeSurface();
-    aim.position.set(h.x, sy + 0.004, h.z); aim.scale.setScalar(1 + 0.25 * Math.sin(t * 8));
-    laser.position.set(h.x, sy, h.z); laser.scale.set(1, Math.max(0.01, h.y - HUB_HH - sy), 1);
-  }
+  aim.visible = showAim;
+  if (showAim) { const sy = game.probeSurface(); aim.position.set(h.x, sy + 0.004, h.z); }
 }
 
 // ---------------- main loop ----------------
@@ -388,7 +347,7 @@ function frame(now: number) {
     game.input.x = -fwd.z * ix + fwd.x * iy; game.input.z = fwd.x * ix + fwd.z * iy;
     timeLeft -= dt;
     const sec = Math.ceil(Math.max(0, timeLeft));
-    ui.timer.textContent = String(sec); ui.ring.style.setProperty('--p', String(Math.max(0, timeLeft / ROUND_TIME)));
+    setSeg(ui.timer, String(sec).padStart(2, '0'));
     if (sec <= 5 && sec !== lastTick) { lastTick = sec; $('timer').classList.add('warn'); sfx.tick(); }
     if (timeLeft <= 0) doGrab();
   }
@@ -405,21 +364,27 @@ function frame(now: number) {
   // camera
   if (intro) {
     const v = views[0]; const tt = now / 1000;
-    camera.position.setFromSpherical(new THREE.Spherical(v.dist * 1.3, 1.25 + Math.sin(tt * 0.31) * 0.05, Math.sin(tt * 0.22) * 0.7)).add(target);
-    camera.lookAt(tmpV.set(0, target.y - 0.95, 0));
+    camera.position.setFromSpherical(new THREE.Spherical(v.dist * 1.12, 1.36 + Math.sin(tt * 0.27) * 0.025, Math.sin(tt * 0.19) * 0.22)).add(target);
+    camera.lookAt(target);
   } else if (camAnim) {
-    camAnim.t = Math.min(1, camAnim.t + dt / 0.8); const k = 1 - Math.pow(1 - camAnim.t, 3);
-    const s = new THREE.Spherical(THREE.MathUtils.lerp(camAnim.from.radius, camAnim.to.radius, k), THREE.MathUtils.lerp(camAnim.from.phi, camAnim.to.phi, k), THREE.MathUtils.lerp(camAnim.from.theta, camAnim.to.theta, k));
-    camera.position.setFromSpherical(s).add(target); camera.lookAt(target);
+    camAnim.t = Math.min(1, camAnim.t + dt / camAnim.dur); const k = camAnim.t * camAnim.t * (3 - 2 * camAnim.t);
+    camera.position.lerpVectors(camAnim.p0, camAnim.p1, k); controls.target.lerpVectors(camAnim.t0, camAnim.t1, k);
+    camera.lookAt(controls.target);
     if (camAnim.t >= 1) camAnim = null;
   }
-  if (!intro && !(window as any).__claw?.closeup) controls.update();
+  if (doorCam > 0 && !camAnim) { doorCam -= dt; if (doorCam <= 0 && viewIdx < 0) goView(0); }
+  const closeup = (window as any).__claw?.closeup;
+  if (!intro && !closeup && !camAnim) controls.update();
+  // slight handheld sway (a person standing, not a tripod); undone after rendering
+  const tt = now / 1000;
+  const sway = intro || closeup ? 0 : 1;
+  const sx = (Math.sin(tt * 0.71) + Math.sin(tt * 1.37 + 1) * 0.5) * 0.0025 * sway, sy = (Math.sin(tt * 0.53 + 2) + Math.sin(tt * 1.13) * 0.4) * 0.0018 * sway;
+  camera.position.x += sx; camera.position.y += sy;
   syncVisuals(dt, now / 1000);
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) ui.toast.classList.remove('show'); }
+  if (grain) grain.uniforms.uT.value = (now / 1000) % 100;
   if (composer) composer.render(); else renderer.render(scene, camera);
-  if (updateOverlay(dt)) {
-    renderer.autoClear = false; renderer.clearDepth(); renderer.render(ovScene, ovCam); renderer.autoClear = true;
-  }
+  camera.position.x -= sx; camera.position.y -= sy;
   if (autoQ && playStart && now - playStart > 1500) {
     fpsAcc += dt; fpsN++;
     if (fpsAcc > 3) {
@@ -440,20 +405,20 @@ async function boot() {
   await new Promise((r) => setTimeout(r, 30));
   game = new ClawGame(RAPIER as any);
   game.on(onEvent);
-  game.fill(22);
+  game.fill(30);
   bar.style.width = '80%'; txt.textContent = '正在编译着色器…';
   await new Promise((r) => setTimeout(r, 30));
   renderer.compile(scene, camera);
-  bar.style.width = '100%'; txt.textContent = '准备就绪!';
+  bar.style.width = '100%'; txt.textContent = '';
   refreshUI();
   requestAnimationFrame(frame);
   $('start').classList.add('ready');
   const go = $<HTMLButtonElement>('go'); go.disabled = false;
   go.addEventListener('click', () => {
-    sfx.unlock(); sfx.startBgm(); sfx.coin(); vibrate(20);
+    sfx.unlock(); sfx.click(); vibrate(20);
     $('start').classList.add('hide'); playStart = performance.now();
     intro = false; controls.enabled = true; document.body.classList.remove('intro'); goView(0);
   });
-  (window as any).__claw = { game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, ov, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
+  (window as any).__claw = { game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
 }
 boot().catch((e) => { console.error(e); $('loadTxt').textContent = '加载失败: ' + e; });

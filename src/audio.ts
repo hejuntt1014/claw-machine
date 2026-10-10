@@ -1,97 +1,99 @@
-// Synthesized sound effects + tiny chiptune BGM (WebAudio, no assets)
+// Synthesized, mechanical-sounding effects (WebAudio, no assets). No chiptune: coins clink, motors whine,
+// solenoids clunk, the prize thuds into the chute and the machine plays a short two-tone chime.
 export class Sfx {
   ctx: AudioContext | null = null;
   master!: GainNode;
   muted = false;
-  private motor: { osc: OscillatorNode; osc2: OscillatorNode; gain: GainNode; filt: BiquadFilterNode } | null = null;
-  private bgmTimer: number | null = null;
-  private bgmGain!: GainNode;
+  private motor: { osc: OscillatorNode; osc2: OscillatorNode; gain: GainNode; filt: BiquadFilterNode; gear: GainNode } | null = null;
   private noiseBuf!: AudioBuffer;
+  private amb: GainNode | null = null;
 
   unlock() {
     if (this.ctx) { this.ctx.resume(); return; }
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     if (!AC) return;
-    this.ctx = new AC();
-    this.master = this.ctx.createGain(); this.master.gain.value = 0.7;
-    const comp = this.ctx.createDynamicsCompressor(); this.master.connect(comp); comp.connect(this.ctx.destination);
-    this.bgmGain = this.ctx.createGain(); this.bgmGain.gain.value = 0.11; this.bgmGain.connect(this.master);
-    const len = this.ctx.sampleRate * 0.5; this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-    const d = this.noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    // motor hum (always running, gain controlled)
-    const osc = this.ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 70;
-    const osc2 = this.ctx.createOscillator(); osc2.type = 'square'; osc2.frequency.value = 141;
-    const filt = this.ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 500;
-    const gain = this.ctx.createGain(); gain.gain.value = 0;
-    osc.connect(filt); osc2.connect(filt); filt.connect(gain); gain.connect(this.master); osc.start(); osc2.start();
-    this.motor = { osc, osc2, gain, filt };
+    const c = (this.ctx = new AC());
+    this.master = c.createGain(); this.master.gain.value = 0.8;
+    const comp = c.createDynamicsCompressor(); this.master.connect(comp); comp.connect(c.destination);
+    const len = c.sampleRate * 2; this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
+    const d = this.noiseBuf.getChannelData(0); let b = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; d[i] = w; }
+    // small DC motor: buzzy fundamental + commutator whine + gear chatter (noise AM)
+    const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 95;
+    const osc2 = c.createOscillator(); osc2.type = 'triangle'; osc2.frequency.value = 760;
+    const filt = c.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 600; filt.Q.value = 0.8;
+    const gain = c.createGain(); gain.gain.value = 0;
+    const o2g = c.createGain(); o2g.gain.value = 0.25;
+    osc.connect(filt); osc2.connect(o2g); o2g.connect(filt); filt.connect(gain); gain.connect(this.master);
+    const gn = c.createBufferSource(); gn.buffer = this.noiseBuf; gn.loop = true;
+    const gf = c.createBiquadFilter(); gf.type = 'bandpass'; gf.frequency.value = 2400; gf.Q.value = 2;
+    const gear = c.createGain(); gear.gain.value = 0; gn.connect(gf); gf.connect(gear); gear.connect(this.master);
+    osc.start(); osc2.start(); gn.start();
+    this.motor = { osc, osc2, gain, filt, gear };
+    // faint arcade/mall room tone (low rumble + distant chatter band), very quiet
+    const an = c.createBufferSource(); an.buffer = this.noiseBuf; an.loop = true; an.playbackRate.value = 0.5;
+    const af = c.createBiquadFilter(); af.type = 'lowpass'; af.frequency.value = 420;
+    this.amb = c.createGain(); this.amb.gain.value = 0.035; an.connect(af); af.connect(this.amb); this.amb.connect(this.master); an.start();
+    void b;
   }
-  setMuted(m: boolean) { this.muted = m; if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.7, this.ctx.currentTime, 0.05); }
+  setMuted(m: boolean) { this.muted = m; if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.8, this.ctx.currentTime, 0.05); }
 
-  private tone(freq: number, dur: number, type: OscillatorType = 'square', vol = 0.2, when = 0, slide = 0) {
+  private tone(freq: number, dur: number, type: OscillatorType = 'sine', vol = 0.2, when = 0, slide = 0, attack = 0.004) {
     const c = this.ctx; if (!c) return;
     const t = c.currentTime + when;
     const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
-    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
   }
-  private noise(dur: number, vol: number, freq: number, q = 1, when = 0) {
+  private noise(dur: number, vol: number, freq: number, q = 1, when = 0, type: BiquadFilterType = 'bandpass') {
     const c = this.ctx; if (!c) return;
     const t = c.currentTime + when;
-    const s = c.createBufferSource(); s.buffer = this.noiseBuf;
-    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const s = c.createBufferSource(); s.buffer = this.noiseBuf; s.playbackRate.value = 0.8 + Math.random() * 0.4;
+    const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
     const g = c.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(this.master); s.start(t); s.stop(t + dur + 0.02);
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t, Math.random()); s.stop(t + dur + 0.02);
   }
   /** motor level 0..1, pitch factor */
   motorLevel(level: number, pitch = 1) {
     if (!this.motor || !this.ctx) return;
     const t = this.ctx.currentTime;
-    this.motor.gain.gain.setTargetAtTime(level * 0.09, t, 0.05);
-    this.motor.osc.frequency.setTargetAtTime(60 * pitch, t, 0.08);
-    this.motor.osc2.frequency.setTargetAtTime(121 * pitch, t, 0.08);
-    this.motor.filt.frequency.setTargetAtTime(350 + 500 * pitch, t, 0.08);
+    this.motor.gain.gain.setTargetAtTime(level * 0.08, t, 0.06);
+    this.motor.gear.gain.setTargetAtTime(level * 0.03, t, 0.06);
+    this.motor.osc.frequency.setTargetAtTime(80 * pitch, t, 0.1);
+    this.motor.osc2.frequency.setTargetAtTime(700 * pitch, t, 0.1);
+    this.motor.filt.frequency.setTargetAtTime(450 + 400 * pitch, t, 0.1);
   }
-  coin() { this.tone(988, 0.08, 'square', 0.15); this.tone(1319, 0.3, 'square', 0.15, 0.08); this.noise(0.15, 0.1, 6000, 2); }
-  click() { this.tone(660, 0.05, 'triangle', 0.15); }
-  clank() { this.noise(0.12, 0.35, 2500, 3); this.tone(180, 0.1, 'triangle', 0.2); }
-  thud(s: number) { this.noise(0.08, Math.min(0.25, 0.06 * s), 300, 1); }
-  gantry(start: boolean) { this.noise(0.06, 0.12, start ? 900 : 600, 2); this.tone(start ? 110 : 90, 0.07, 'triangle', 0.12); }
-  chute() { this.noise(0.25, 0.3, 220, 0.8); this.tone(70, 0.25, 'sine', 0.35, 0, -30); }
-  confetti() {
-    for (let i = 0; i < 2; i++) { this.noise(0.18, 0.4, 1800, 0.7, i * 0.12); this.tone(240, 0.12, 'sine', 0.2, i * 0.12, -150); }
-    for (let i = 0; i < 10; i++) this.tone(1800 + Math.random() * 1800, 0.12, 'sine', 0.05, 0.25 + i * 0.07);
+  /** coin falling through the acceptor: a few metallic clinks + rattle */
+  coin() {
+    const partials = [2960, 4410, 6120];
+    [0, 0.07, 0.115].forEach((w, i) => partials.forEach((p) => this.tone(p * (1 - i * 0.03), 0.18 - i * 0.04, 'sine', 0.05 - i * 0.012, w)));
+    this.noise(0.09, 0.1, 5000, 3, 0.16);
+    this.noise(0.06, 0.12, 900, 2, 0.24);
+    this.chime(0.45, true);
   }
-  tick() { this.tone(1200, 0.04, 'square', 0.08); }
-  win() {
-    const notes = [523, 659, 784, 1047, 784, 1047, 1319];
-    notes.forEach((n, i) => this.tone(n, 0.22, 'square', 0.14, i * 0.1));
-    notes.forEach((n, i) => this.tone(n / 2, 0.22, 'triangle', 0.12, i * 0.1));
-    this.noise(0.8, 0.08, 8000, 0.5, 0.7);
+  /** plastic micro-switch click */
+  click() { this.noise(0.025, 0.25, 3200, 4); this.tone(1800, 0.02, 'square', 0.03); }
+  /** claw solenoid / prongs snapping shut */
+  clank() { this.noise(0.05, 0.35, 1400, 2); this.tone(140, 0.09, 'triangle', 0.2, 0, -50); this.noise(0.12, 0.08, 4000, 6, 0.02); }
+  thud(s: number) { this.noise(0.09, Math.min(0.22, 0.05 * s), 260, 1.2); }
+  gantry(start: boolean) { this.noise(0.04, 0.08, start ? 1200 : 800, 3); }
+  /** prize dropping down the chute and hitting the bin */
+  chute() {
+    this.noise(0.18, 0.12, 700, 1.5);
+    this.noise(0.22, 0.4, 150, 1, 0.22, 'lowpass'); this.tone(85, 0.22, 'sine', 0.35, 0.22, -35);
+    this.noise(0.1, 0.12, 400, 1, 0.42, 'lowpass');
   }
-  lose() { [392, 349, 311, 262].forEach((n, i) => this.tone(n, 0.25, 'triangle', 0.15, i * 0.16)); }
-  startBgm() {
-    if (!this.ctx || this.bgmTimer !== null) return;
-    const mel = [76, 79, 84, 79, 81, 79, 76, 74, 72, 76, 79, 76, 74, 72, 74, 76, 77, 81, 84, 81, 79, 77, 76, 74, 72, 74, 76, 79, 76, 74, 72, 0];
-    const bass = [48, 48, 55, 55, 53, 53, 55, 55];
-    let step = 0; const spb = 0.2; let next = this.ctx.currentTime + 0.1;
-    const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
-    const sched = () => {
-      const c = this.ctx!;
-      while (next < c.currentTime + 0.4) {
-        const n = mel[step % mel.length];
-        if (n) this.bgmNote(midi(n), spb * 0.9, 'square', 0.5, next);
-        if (step % 4 === 0) this.bgmNote(midi(bass[(step / 4) % bass.length]), spb * 3.5, 'triangle', 0.9, next);
-        step++; next += spb;
-      }
-    };
-    this.bgmTimer = window.setInterval(sched, 100);
+  /** the machine's own two-tone ding-dong (like real cranes' prize chime) */
+  chime(when = 0, soft = false) {
+    const v = soft ? 0.04 : 0.11;
+    for (const [f, w] of [[1318.5, 0], [1046.5, 0.32]] as const) {
+      this.tone(f, 1.1, 'sine', v, when + w, 0, 0.003);
+      this.tone(f * 2.76, 0.4, 'sine', v * 0.25, when + w, 0, 0.002);
+    }
   }
-  private bgmNote(f: number, dur: number, type: OscillatorType, vol: number, t: number) {
-    const c = this.ctx!; const o = c.createOscillator(); o.type = type; o.frequency.value = f;
-    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(this.bgmGain); o.start(t); o.stop(t + dur + 0.02);
-  }
+  win() { this.chime(0.05); this.chime(0.75); }
+  tick() { this.tone(2000, 0.035, 'square', 0.04); }
+  lose() { this.tone(330, 0.16, 'triangle', 0.06); this.tone(262, 0.3, 'triangle', 0.06, 0.18); }
 }
 export const vibrate = (p: number | number[]) => { try { navigator.vibrate?.(p); } catch { /* ignore */ } };

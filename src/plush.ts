@@ -27,7 +27,7 @@ const WHITE = new THREE.Color(0xffffff);
 function plushMaterial(color: number, u: PlushUniforms, fur: boolean) {
   const c = new THREE.Color(color);
   const m = new THREE.MeshPhysicalMaterial({
-    color: c, roughness: 0.96, metalness: 0, sheen: 1, sheenRoughness: 0.42, sheenColor: c.clone().lerp(WHITE, 0.5),
+    color: c, roughness: 0.96, metalness: 0, sheen: 0.8, sheenRoughness: 0.5, sheenColor: c.clone().lerp(WHITE, 0.3),
     map: fabricDetail(), normalMap: fabricNormal(), normalScale: new THREE.Vector2(0.5, 0.5),
   });
   furGlobals.uFurTex.value = furNoise();
@@ -66,20 +66,23 @@ ${fur ? '{ float n = texture2D(uFurTex, vMapUv * vec2(16.0, 8.0)).r; if (n < vSh
 
 // shared non-fabric materials
 const MAT = {
-  eye: new THREE.MeshPhysicalMaterial({ color: 0x0b0b10, roughness: 0.06, clearcoat: 1, clearcoatRoughness: 0.03 }),
+  eye: new THREE.MeshPhysicalMaterial({ color: 0x0b0b10, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  tag: new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.85, side: THREE.DoubleSide }),
+  tagPrint: new THREE.MeshStandardMaterial({ color: 0x9a3a34, roughness: 0.85 }),
   eyeHi: new THREE.MeshBasicMaterial({ color: 0xffffff }),
   eyeWhite: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }),
   thread: new THREE.MeshStandardMaterial({ color: 0x3a2420, roughness: 0.95 }),
   nose: new THREE.MeshPhysicalMaterial({ color: 0x3a2018, roughness: 0.25, clearcoat: 0.8 }),
-  felt: new THREE.MeshStandardMaterial({ color: 0xff9a2e, roughness: 0.9 }),
-  ribbon: new THREE.MeshPhysicalMaterial({ color: 0xe8264f, roughness: 0.35, sheen: 1, sheenColor: new THREE.Color(0xff9ab0), sheenRoughness: 0.3 }),
-  blush: new THREE.MeshStandardMaterial({ color: 0xff7f9f, roughness: 1, transparent: true, opacity: 0.7, depthWrite: false }),
+  felt: new THREE.MeshStandardMaterial({ color: 0xcf8a3e, roughness: 0.9 }),
+  ribbon: new THREE.MeshPhysicalMaterial({ color: 0x9c3a40, roughness: 0.45, sheen: 0.7, sheenColor: new THREE.Color(0xd9a0a6), sheenRoughness: 0.4 }),
+  blush: new THREE.MeshStandardMaterial({ color: 0xd88f8c, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false }),
 };
 
 const sphere = new THREE.SphereGeometry(1, 32, 22);
 const sphereLo = new THREE.SphereGeometry(1, 14, 10);
 const cone = new THREE.ConeGeometry(1, 1, 18);
 const cyl = new THREE.CylinderGeometry(1, 1, 1, 22);
+const box = new THREE.BoxGeometry(1, 1, 1);
 const smile = new THREE.TorusGeometry(0.0055, 0.0011, 5, 14, Math.PI);
 const capsule = (r: number, hh: number) => new THREE.CapsuleGeometry(r, hh * 2, 10, 24);
 
@@ -121,8 +124,11 @@ export function disposePlush(m: PlushModel) {
   });
 }
 
-export function buildPrize(type: PrizeType, color: number): PlushModel {
+export function buildPrize(type: PrizeType, color: number, seed = 0.5): PlushModel {
   const u = makePlushUniforms();
+  // deterministic per-toy variation: slight colour drift, asymmetric stitching, ear angles
+  let st = Math.floor(seed * 2147483646) + 1; const r = () => ((st = (st * 16807) % 2147483647) / 2147483647); const j = (a: number) => (r() * 2 - 1) * a;
+  { const hsl = { h: 0, s: 0, l: 0 }; const cc = new THREE.Color(color); cc.getHSL(hsl); cc.setHSL(hsl.h + j(0.012), Math.max(0, hsl.s * (0.9 + j(0.12))), hsl.l * (0.95 + j(0.06))); color = cc.getHex(); }
   const b = new Builder();
   const furFor = new Map<THREE.Material, THREE.Material>();
   const cache = new Map<number, THREE.Material>();
@@ -132,13 +138,10 @@ export function buildPrize(type: PrizeType, color: number): PlushModel {
     return m;
   };
   const base = F(color);
-  const light = F(new THREE.Color(color).lerp(new THREE.Color(0xfff7ee), 0.62).getHex());
-  const pink = F(0xffa6bd);
-  const eyes = (y: number, z: number, dx: number, r = 0.0062, tilt = 0) => {
-    for (const s of [-1, 1]) {
-      b.add(sphereLo, MAT.eye, V(s * dx, y, z + 0.0026), V(r, r * 1.18, r * 0.75), E(-tilt, 0, 0));
-      b.add(sphereLo, MAT.eyeHi, V(s * dx + 0.0019, y + 0.0026, z + 0.0026 + r * 0.66), 0.0017);
-    }
+  const light = F(new THREE.Color(color).lerp(new THREE.Color(0xf0e7d8), 0.55).getHex());
+  const pink = F(0xd6a3a0);
+  const eyes = (y: number, z: number, dx: number, rr = 0.0062, tilt = 0) => {
+    for (const s of [-1, 1]) b.add(sphereLo, MAT.eye, V(s * dx + j(0.0012), y + j(0.0012), z + 0.0026), V(rr, rr * 1.12, rr * 0.75), E(-tilt, 0, 0));
   };
   const mouth = (y: number, z: number, tiltX = 0.25) => {
     for (const s of [-1, 1]) b.add(smile, MAT.thread, V(s * 0.0054, y, z + 0.0022), 1, E(tiltX, 0, Math.PI));
@@ -155,15 +158,17 @@ export function buildPrize(type: PrizeType, color: number): PlushModel {
       mouth(0.0555, 0.0515);
       eyes(0.079, 0.0435, 0.0175, 0.0064, 0.15); blush(0.064, 0.042, 0.03);
       for (const s of [-1, 1]) {
-        b.add(sphere, base, V(s * 0.035, 0.106, 0), V(0.016, 0.016, 0.0095));
+        b.add(sphere, base, V(s * 0.035, 0.106, 0), V(0.016, 0.016, 0.0095), E(0, 0, j(0.25)));
         b.add(sphere, pink, V(s * 0.035, 0.105, 0.0058), V(0.0095, 0.0095, 0.004));
         b.add(capsule(0.0165, 0.012), base, V(s * 0.043, 0.004, 0.016), 1, E(0.6, 0, s * 0.75));
         b.add(sphere, base, V(s * 0.023, -0.037, 0.022), V(0.02, 0.018, 0.024));
         b.add(sphere, light, V(s * 0.023, -0.039, 0.043), V(0.012, 0.011, 0.004));
       }
+      if (r() < 0.5) {
       b.add(cone, MAT.ribbon, V(-0.011, 0.031, 0.036), V(0.009, 0.018, 0.006), E(0, 0, Math.PI / 2));
       b.add(cone, MAT.ribbon, V(0.011, 0.031, 0.036), V(0.009, 0.018, 0.006), E(0, 0, -Math.PI / 2));
       b.add(sphereLo, MAT.ribbon, V(0, 0.031, 0.038), 0.0045);
+      }
       break;
     }
     case 'bunny': {
@@ -174,7 +179,7 @@ export function buildPrize(type: PrizeType, color: number): PlushModel {
       mouth(0.0545, 0.0435);
       eyes(0.072, 0.039, 0.016, 0.0062, 0.1); blush(0.058, 0.038, 0.027);
       for (const s of [-1, 1]) {
-        b.add(capsule(0.012, 0.022), base, V(s * 0.017, 0.128, -0.004), V(1, 1, 0.55), E(0, 0, -s * 0.16));
+        b.add(capsule(0.012, 0.022), base, V(s * 0.017, 0.128, -0.004), V(1, 1, 0.55), E(j(0.2), 0, -s * 0.16 + j(0.22)));
         b.add(capsule(0.007, 0.018), pink, V(s * 0.0175, 0.128, 0.0016), V(1, 1, 0.3), E(0, 0, -s * 0.16));
         b.add(sphere, base, V(s * 0.021, -0.035, 0.02), V(0.017, 0.015, 0.022));
         b.add(capsule(0.012, 0.01), base, V(s * 0.037, 0.002, 0.021), 1, E(0.5, 0, s * 0.5));
@@ -195,12 +200,11 @@ export function buildPrize(type: PrizeType, color: number): PlushModel {
     }
     case 'penguin': {
       b.add(capsule(0.044, 0.026), base, V(0, 0.01, 0), 1);
-      b.add(capsule(0.04, 0.02), F(0xfbf8f2), V(0, 0.004, 0.012), V(0.86, 1, 0.82));
+      b.add(capsule(0.04, 0.02), F(0xece8df), V(0, 0.002, 0.019), V(0.84, 0.98, 0.78));
       b.add(cone, MAT.felt, V(0, 0.036, 0.048), V(0.008, 0.014, 0.006), E(Math.PI / 2, 0, 0));
       for (const s of [-1, 1]) {
         b.add(sphereLo, MAT.eyeWhite, V(s * 0.0145, 0.05, 0.0405), V(0.0085, 0.0095, 0.004));
         b.add(sphereLo, MAT.eye, V(s * 0.0145, 0.0495, 0.0435), V(0.0048, 0.0058, 0.003));
-        b.add(sphereLo, MAT.eyeHi, V(s * 0.0145 + 0.0015, 0.0515, 0.0462), 0.0013);
         b.add(sphere, base, V(s * 0.045, 0.004, 0), V(0.008, 0.028, 0.016), E(0, 0, s * 0.35));
         b.add(sphere, MAT.felt, V(s * 0.017, -0.06, 0.018), V(0.013, 0.005, 0.017));
       }
@@ -213,12 +217,17 @@ export function buildPrize(type: PrizeType, color: number): PlushModel {
       b.add(cyl, snout, V(0, -0.003, 0.054), V(0.019, 0.012, 0.014), E(Math.PI / 2, 0, 0));
       for (const s of [-1, 1]) {
         b.add(sphereLo, MAT.nose, V(s * 0.006, -0.003, 0.0625), V(0.003, 0.0045, 0.002));
-        b.add(cone, base, V(s * 0.031, 0.05, -0.006), V(0.014, 0.022, 0.007), E(0.25, 0, -s * 0.5));
+        b.add(sphere, base, V(s * 0.03, 0.047, -0.004), V(0.017, 0.015, 0.006), E(0.35 + j(0.15), 0, -s * 0.6 + j(0.2)));
         b.add(sphere, snout, V(s * 0.026, -0.046, 0.016), V(0.014, 0.012, 0.016));
       }
       mouth(-0.02, 0.0525, 0.6);
       eyes(0.023, 0.051, 0.021, 0.0064); blush(0.008, 0.051, 0.036, 0.6);
     }
   }
+  // sewn-in care tag on the lower side/back seam
+  { const side = r() < 0.5 ? -1 : 1; const ty = type.id === 'chick' || type.id === 'pig' ? -0.03 : -0.022; const tx = side * (type.id === 'chick' || type.id === 'pig' ? 0.036 : 0.026);
+    const rot = E(j(0.3), side * 0.9, j(0.4) + side * 0.2);
+    b.add(box, MAT.tag, V(tx, ty - 0.012, -0.027), V(0.014, 0.026, 0.0012), rot);
+    b.add(box, MAT.tagPrint, V(tx, ty - 0.006, -0.027), V(0.0145, 0.003, 0.0014), rot); }
   return { group: b.build(furFor), u };
 }

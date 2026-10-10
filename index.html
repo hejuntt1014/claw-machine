@@ -3,61 +3,60 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<meta name="theme-color" content="#140b22" />
+<meta name="theme-color" content="#18171a" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>3D 夹娃娃机</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧸</text></svg>" />
+<title>抓娃娃</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23c4362c'/><path d='M16 6v8M10 22l6-8 6 8' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round'/></svg>" />
 </head>
 <body class="intro">
 <div id="app">
   <canvas id="c"></canvas>
   <div id="hud">
-    <div class="top">
-      <div class="pill" id="coins"><span>🪙</span><b>10</b></div>
-      <div class="pill" id="timer"><i id="ring"></i><b>--</b><span class="unit">秒</span></div>
-      <button class="pill" id="bag"><span>🧸</span><b>0</b></button>
-    </div>
-    <div class="tools">
-      <button id="snd" aria-label="声音">🔊</button>
-      <button id="cam" aria-label="视角">🎥</button>
-      <button id="q" aria-label="画质">中</button>
+    <div id="board">
+      <div class="seg" id="coins"><label>币</label><div class="digits"></div></div>
+      <div class="seg" id="timer"><label>时间</label><div class="digits"></div></div>
+      <button class="seg" id="bag" aria-label="我的奖品"><label>奖品</label><div class="digits"></div></button>
+      <div class="tools">
+        <button id="snd" aria-label="声音"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button>
+        <button id="cam" aria-label="换角度"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+        <button id="q" aria-label="画质">中</button>
+      </div>
     </div>
     <div id="status"></div>
     <div id="toast"></div>
-    <div class="bottom">
-      <div id="joy"><div class="arrows"><i>▲</i><i>▶</i><i>▼</i><i>◀</i></div><div id="knob"></div></div>
-      <button id="insert">投币开始<small>1 币 / 局</small></button>
-      <button id="grab">抓!</button>
+    <div id="deck">
+      <div id="joy"><div class="plate"><i></i><i></i><i></i><i></i></div><div class="washer"></div><div id="knob"></div></div>
+      <button id="insert"><span class="slot"></span><em>投币</em><small>1币1局</small></button>
+      <button id="grab"><span class="ring"><span class="cap"></span></span><em>下爪</em></button>
     </div>
   </div>
   <div id="drawer" class="hidden">
     <div class="panel">
-      <h2>我的战利品</h2>
+      <h2>我的奖品</h2>
       <div id="bagList"></div>
       <button id="closeBag">关闭</button>
     </div>
   </div>
   <div id="win">
     <div class="card">
-      <div class="badge">🎉 恭喜获得 <span id="winEmoji"></span></div>
+      <div class="hd"><span>出奖</span><span id="winNo"></span></div>
       <div class="name" id="winName"></div>
       <div class="wsub" id="winSub"></div>
-      <button id="winOk">收下!</button>
+      <button id="winOk">取出</button>
     </div>
   </div>
   <div id="start">
-    <div class="intro">
-      <div class="tag">ARCADE · 3D · 真实物理</div>
-      <h1><span>夹</span><span>娃</span><span>娃</span></h1>
-      <p class="sub">毛绒娃娃软乎乎 · 爪力随机像真机 · 掉进出口就归你</p>
+    <div class="sheet">
+      <h1>抓娃娃</h1>
+      <p class="sub">1 币 1 局 · 新玩家送 10 币</p>
       <div class="bar"><div id="bar"></div></div>
       <p id="loadTxt">正在加载…</p>
-      <button id="go" disabled>开始游戏</button>
-      <ul class="help">
-        <li><b>🕹️</b>左下摇杆 / 方向键 移动爪子</li>
-        <li><b>🔴</b>点「抓!」或空格 下爪</li>
-        <li><b>👆</b>拖动旋转视角 · 双指缩放 · 🎥 切换侧视</li>
-      </ul>
+      <button id="go" disabled>开始</button>
+      <ol class="help">
+        <li>左下摇杆移动爪子（电脑可用方向键）</li>
+        <li>按红色按钮下爪（空格键）</li>
+        <li>拖动画面换角度，双指缩放</li>
+      </ol>
     </div>
   </div>
 </div>

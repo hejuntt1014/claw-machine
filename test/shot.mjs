@@ -36,6 +36,6 @@ await page.waitForFunction(() => window.__claw.game.state === 'idle', null, { ti
 await page.waitForTimeout(400);
 await page.screenshot({ path: 'screenshots/4-result.png' });
 const fps = await page.evaluate(() => new Promise((r) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); else r(n / 2); }; requestAnimationFrame(f); }));
-const after = await page.evaluate(() => ({ state: window.__claw.game.state, wins: window.__claw.game.roundWins, coins: document.querySelector('#coins b').textContent }));
+const after = await page.evaluate(() => ({ state: window.__claw.game.state, wins: window.__claw.game.roundWins, coins: localStorage.getItem('claw_coins') }));
 console.log(JSON.stringify({ before, after, fps, errors }, null, 1));
 await browser.close();
