@@ -130,3 +130,8 @@ body.wide.compact #grab em { display: none; }
 body.wide.compact #status { bottom: calc(env(safe-area-inset-bottom) + 10px); font-size: 12px; }
 body.wide #start .sheet { max-width: 420px; }
 body.wide.compact #start .sheet { padding-bottom: 14px; } body.wide.compact .help { display: none; } body.wide.compact #start h1 { font-size: 28px; }
+.seg label { white-space: nowrap; }
+body:not(.wide) #board { gap: 4px; }
+body:not(.wide) .seg { padding: 4px 5px; gap: 4px; }
+body:not(.wide) .tools { gap: 4px; }
+body:not(.wide) .tools button { width: 36px; }
