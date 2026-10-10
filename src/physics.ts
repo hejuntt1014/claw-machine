@@ -189,8 +189,9 @@ export class ClawGame {
     // sloped ramp toward the prize door + bin floor
     const ang = 0.5;
     const ramp = R.ColliderDesc.cuboid(0.16, 0.01, 0.2).setRotation({ x: Math.sin(ang / 2), y: 0, z: 0, w: Math.cos(ang / 2) });
-    this.fixed(ramp, (H.x0 + H.x1) / 2, -0.52, 0.24, 0.4);
-    this.fixed(R.ColliderDesc.cuboid(0.16, 0.01, 0.1), (H.x0 + H.x1) / 2, BIN_FLOOR_Y - 0.01, 0.38, 0.6);
+    // ramp's lower (front) edge meets the bin floor so prizes slide all the way into the pickup window
+    this.fixed(ramp, (H.x0 + H.x1) / 2, BIN_FLOOR_Y + 0.096 - 0.004, 0.32 - 0.176, 0.25);
+    this.fixed(R.ColliderDesc.cuboid(0.16, 0.01, 0.13), (H.x0 + H.x1) / 2, BIN_FLOOR_Y - 0.01, 0.345, 0.5);
   }
 
   private buildClaw() {

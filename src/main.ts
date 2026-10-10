@@ -81,7 +81,28 @@ function showWin(prize: Prize) {
   goDoor(); doorCam = 3.5;
 }
 function hideWin() { $('win').classList.remove('show'); if (viewIdx < 0) { doorCam = 0; goView(0); } }
-$('winOk').addEventListener('click', () => { sfx.click(); hideWin(); });
+// taking prizes out of the pickup window: the toy slides out through the flap and disappears
+const taking = new Map<number, { m: PlushModel; t: number; p0: THREE.Vector3; s0: number }>();
+function takePrizes() {
+  for (const p of [...game.prizes]) {
+    if (!p.won) continue;
+    const m = models.get(p.uid); if (!m) { game.removePrize(p); continue; }
+    taking.set(p.uid, { m, t: 0, p0: m.group.position.clone(), s0: m.group.scale.x });
+    models.delete(p.uid);
+    game.removePrize(p);
+  }
+  doorHold = 0;
+}
+function updateTaking(dt: number) {
+  for (const [uid, k] of taking) {
+    k.t += dt / 0.45; const e = Math.min(1, k.t);
+    k.m.group.position.set(k.p0.x, k.p0.y + Math.sin(e * Math.PI) * 0.03, k.p0.z + e * 0.35);
+    k.m.group.scale.setScalar(k.s0 * (1 - e * e));
+    k.m.u.uCenter.value.copy(k.m.group.position); k.m.u.uFloorY.value = -10;
+    if (e >= 1) { scene.remove(k.m.group); disposePlush(k.m); taking.delete(uid); }
+  }
+}
+$('winOk').addEventListener('click', () => { sfx.click(); hideWin(); takePrizes(); sfx.take(); });
 
 // ---------------- post-processing / quality ----------------
 const QUALITY = ['低', '中', '高'];
@@ -201,6 +222,7 @@ function refreshUI() {
 function insertCoin() {
   sfx.unlock();
   if (game.state !== 'idle') return;
+  if ($('win').classList.contains('show')) takePrizes();
   hideWin();
   if (coins <= 0) { coins = 10; store.coins = coins; sfx.coin(); toast('已赠送 10 币', false, 1.6); refreshUI(); return; }
   coins--; store.coins = coins;
@@ -284,6 +306,7 @@ const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), invQ = new THREE.
 const contacts = new Map<Prize, ContactPt[]>();
 function inHole(x: number, z: number) { return x < HOLE.x1 + 0.03 && z > HOLE.z0 - 0.03; }
 function syncVisuals(dt: number, t: number) {
+  updateTaking(dt);
   game.gatherProngContacts(contacts);
   for (const p of game.prizes) {
     const m = models.get(p.uid); if (!m) continue;

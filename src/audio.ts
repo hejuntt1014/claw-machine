@@ -92,6 +92,8 @@ export class Sfx {
       this.tone(f * 2.76, 0.4, 'sine', v * 0.25, when + w, 0, 0.002);
     }
   }
+  /** pushing the pickup flap and pulling the toy out */
+  take() { this.noise(0.06, 0.18, 1800, 2); this.noise(0.25, 0.06, 900, 0.8, 0.05); this.noise(0.05, 0.14, 1500, 2, 0.32); }
   win() { this.chime(0.05); this.chime(0.75); }
   tick() { this.tone(2000, 0.035, 'square', 0.04); }
   lose() { this.tone(330, 0.16, 'triangle', 0.06); this.tone(262, 0.3, 'triangle', 0.06, 0.18); }
