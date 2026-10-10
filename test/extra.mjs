@@ -26,8 +26,12 @@ await page.waitForTimeout(1500);
 await page.waitForFunction(() => !window.__claw.camAnimating());
 await page.waitForTimeout(1000);
 await page.screenshot({ path: 'screenshots/7-win-pickup.png' });
-if (process.env.WINONLY) { console.log(JSON.stringify(errors)); await browser.close(); process.exit(0); }
+const binY = await page.evaluate(() => window.__claw.game.prizes.filter(p => p.won).map(p => +p.body.translation().y.toFixed(3)));
 await page.tap('#winOk', { force: true });
+await page.waitForTimeout(2500);
+const afterTake = await page.evaluate(() => window.__claw.game.prizes.filter(p => p.won).length);
+console.log(JSON.stringify({ binY, afterTake }));
+if (process.env.WINONLY) { console.log(JSON.stringify(errors)); await browser.close(); process.exit(0); }
 await page.waitForTimeout(800);
 await page.waitForFunction(() => !window.__claw.camBusy());
 await page.tap('#cam', { force: true });

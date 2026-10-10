@@ -10,6 +10,9 @@ A mobile-first 3D claw machine that runs in the browser. It aims to look like a 
 - **UI:** a 7-segment LED readout for coins, time and prizes, a physical joystick, a coin-slot button and a big red push button. When you win, the toy drops into the pickup window with a thud, the door lamp blinks, the camera dips to show it and a plain card names the prize.
 - **Sound:** synthesized mechanical sounds: coin clinks, motor whine with gear noise, the solenoid clunk, the chute thud and the machine's two-tone chime, over faint room tone. There is no music.
 
+- **Desktop & mobile:** portrait phones get an LED board on top and a control deck at the bottom. Landscape phones and desktop (16:9 to ultrawide) get control columns either side of the machine, which sits in a row of neighbouring cabinets. The game respects safe-area insets and resizes on window or orientation changes. Page scroll, pinch zoom, pull-to-refresh and long-press menus are blocked. Audio unlocks on the first tap. Low-end devices start on 低 quality; desktop starts on 高 with 4K shadows and MSAA.
+- **Input:** touch or mouse joystick (click and hold), and drag or wheel to move the camera. Keyboard: WASD/arrows move, Space drops, Enter/C inserts a coin, V or 1/2/3 switch views, M mutes, F toggles fullscreen, Esc closes. Gamepad: stick or d-pad moves, A drops, X/Start inserts a coin, Y changes the view.
+
 ## Dev
 ```
 npm install
@@ -18,4 +21,4 @@ npm run build      # static build -> dist/ (base /claw-machine/; VITE_BASE=./ fo
 npm test           # headless physics simulation of grab rounds
 ```
 
-Controls: the joystick or arrow keys/WASD move the claw, and the red button or Space drops it. Drag to change the angle, pinch to zoom, and use the camera button to switch views.
+
