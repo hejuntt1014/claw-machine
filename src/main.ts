@@ -151,7 +151,7 @@ let visFrac = 1, hFrac = 1, wideLayout = false;
 function fitDist() {
   const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   // portrait: fit the glass width; wide: fit the whole cabinet height between the side columns
-  return wideLayout ? Math.max(0.66 / (vt * camera.aspect * hFrac), 0.86 / (vt * visFrac)) : Math.max(0.6 / (vt * camera.aspect), 0.78 / (vt * visFrac));
+  return wideLayout ? Math.max(0.7 / (vt * camera.aspect * hFrac), 1.18 / (vt * visFrac)) : Math.max(0.6 / (vt * camera.aspect), 0.78 / (vt * visFrac));
 }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -168,7 +168,7 @@ function resize() {
   const bot = wideLayout ? 0 : $('deck').offsetHeight || 150;
   visFrac = Math.max(0.4, (h - top - bot - (wideLayout ? 12 : 0)) / h);
   hFrac = Math.max(0.3, (w - side * 2) / w);
-  target.y = wideLayout ? 0.52 : 0.6;
+  target.y = wideLayout ? 0.6 : 0.6;
   camera.setViewOffset(w, h, 0, (bot - top) / 2, w, h);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);

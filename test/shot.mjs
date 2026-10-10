@@ -15,6 +15,8 @@ const tap = (sel) => TOUCH ? page.tap(sel, { force: true }) : page.click(sel, { 
 await tap('#go');
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.__claw.setQuality(Number(new URL(location.href).searchParams.get('q') ?? 1)));
+await page.waitForFunction(() => !window.__claw.camAnimating(), null, { timeout: 120000 });
+await page.waitForTimeout(500);
 if (process.env.CAM) { await tap('#cam'); await page.waitForTimeout(4000); }
 await page.screenshot({ path: process.env.SHOT ?? `screenshots/${P}1-idle.png` }); if (process.env.SHORT) { console.log(errors); await browser.close(); process.exit(0); }
 await tap('#insert');

@@ -173,20 +173,32 @@ export function buildRoom(): THREE.Group {
   const room = new THREE.Group();
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.MeshStandardMaterial({ map: floorTiles(), roughness: 0.35, metalness: 0.05 }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -1.0; floor.receiveShadow = true; room.add(floor);
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(14, 6), new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 0.9 })); wall.position.set(0, 2, -3.2); room.add(wall);
-  // neighbouring machines (dim, varied, out of focus by fog)
-  const cols = [0x3c6e9e, 0xc9b9a0, 0x8a3b34, 0x4f6b4a];
-  [-1.55, -0.95, 0.95, 1.6].forEach((x, i) => {
-    const g = new THREE.Group(); g.position.set(x * 1.2, -1, -1.9 - (i % 2) * 0.35); g.rotation.y = (i - 1.5) * 0.08;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 2.1, 0.62), new THREE.MeshStandardMaterial({ color: cols[i], roughness: 0.5, metalness: 0.15 }));
-    body.position.y = 1.05; g.add(body);
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xfff1dc, emissiveIntensity: 0.35 }));
-    win.position.set(0, 1.3, 0.311); g.add(win);
-    const head = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.16), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xfff7ea, emissiveIntensity: 0.6 }));
-    head.position.set(0, 1.95, 0.312); g.add(head);
-    room.add(g);
-  });
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), new THREE.MeshStandardMaterial({ color: 0x34302c, roughness: 0.9 })); wall.position.set(0, 2, -1.6); room.add(wall);
+  // the rest of the row: simplified neighbouring claw machines (same footprint, different paint and signs)
+  const specs: [number, number, string, number][] = [[-1.3, 0x2f5f8f, '娃娃机', 0.0], [1.3, 0xd8d2c4, '幸运抓抓', 0.0], [-2.62, 0x8c3a33, '欢乐抓', 0.06], [2.62, 0x3f6146, '娃娃机', -0.06], [-3.95, 0xcfc6b2, '抓抓乐', 0.12], [3.95, 0x7a4f7a, '娃娃机', -0.12]];
+  for (const [x, col, txt, ry] of specs) room.add(neighbourCabinet(col, txt, x, ry));
   return room;
+}
+
+const nbGeo = { body: new RoundedBoxGeometry(1.16, 1.0, 1.0, 2, 0.012), post: new THREE.BoxGeometry(0.05, 1.22, 0.05), head: new RoundedBoxGeometry(1.16, 0.3, 0.96, 2, 0.012), glass: new THREE.PlaneGeometry(1.0, 1.2), lump: new THREE.SphereGeometry(0.042, 10, 8) };
+const lumpMats = [0x8b6a4f, 0xe8e3da, 0xdcb956, 0xdca69c, 0x46546a, 0xc9b394, 0xaaa5a0].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, normalMap: fabricNormal(), normalScale: new THREE.Vector2(0.4, 0.4) }));
+function neighbourCabinet(color: number, sign: string, x: number, ry: number) {
+  const g = new THREE.Group(); g.position.set(x, 0, -0.02 + Math.abs(x) * 0.02); g.rotation.y = ry;
+  const paint = new THREE.MeshStandardMaterial({ color, map: wear, roughness: 0.45, metalness: 0.1 });
+  const b = new THREE.Mesh(nbGeo.body, paint); b.position.y = -0.5; b.receiveShadow = true; g.add(b);
+  const h = new THREE.Mesh(nbGeo.head, paint); h.position.y = 1.35; g.add(h);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const p = new THREE.Mesh(nbGeo.post, M.alu); p.position.set(sx * 0.525, 0.6, sz * 0.425); g.add(p); }
+  const st = labelTexture(sign, '#c4362c', '#f3eee4', 512, 128, 'bold 84px "PingFang SC","Microsoft YaHei",sans-serif');
+  const sm = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: st, emissive: 0xfff3e0, emissiveMap: st, emissiveIntensity: 0.7 })); sm.position.set(0, 1.36, 0.485); g.add(sm);
+  // lit interior: back print glow + a heap of toy-coloured lumps
+  const back = new THREE.Mesh(nbGeo.glass, new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xcfd9d4, emissiveIntensity: 0.32 })); back.position.set(0, 0.6, -0.4); g.add(back);
+    for (let i = 0; i < 34; i++) { const l = new THREE.Mesh(nbGeo.lump, lumpMats[(i * 5 + Math.round(x * 3)) % lumpMats.length]); const r = Math.sin(i * 12.9898 + x) * 43758.5453; const fr = r - Math.floor(r);
+    l.position.set(-0.4 + fr * 0.8, 0.04 + (i % 3) * 0.045 + fr * 0.03, -0.32 + ((i * 0.618) % 1) * 0.6); l.scale.set(1 + (i % 3) * 0.2, 0.85 + (i % 2) * 0.25, 1 + fr * 0.3); l.rotation.set(i, i * 2, 0); g.add(l); }
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.8), new THREE.MeshStandardMaterial({ color: 0x2e3646, roughness: 1 })); fl.rotation.x = -Math.PI / 2; fl.position.y = 0.002; g.add(fl);
+  const tube = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.012, 0.012), M.tube); tube.position.set(0, 1.17, 0.36); g.add(tube);
+  const gl = new THREE.Mesh(nbGeo.glass, M.glassRefl); gl.position.set(0, 0.6, 0.41); gl.renderOrder = 4; g.add(gl);
+  const ledge = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.06, 0.16), M.blackPlastic); ledge.position.set(0, -0.03, 0.56); g.add(ledge);
+  return g;
 }
 
 /** environment used for lighting + reflections: a mall interior with rows of ceiling panels */
