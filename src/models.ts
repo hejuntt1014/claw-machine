@@ -100,11 +100,10 @@ export function buildMachine(theme: Theme = THEMES[0]): MachineParts {
 
   // circular PRIZE OUT
   const ringTex = prizeOutRing(theme.accentHex);
-  const ringDec = decal(ringTex, 0.42, 0.42, -0.32, -0.55, 0.505, root, 0.35);
+  const ringDec = decal(ringTex, 0.48, 0.48, -0.3, -0.52, 0.505, root, 0.35);
   // dark well behind the ring
-  mesh(new THREE.CircleGeometry(0.16, 32), M.dark, -0.32, -0.55, 0.49, root, false);
-  const prizeRing = mesh(new THREE.TorusGeometry(0.195, 0.018, 12, 48), track(M.doorLamp, 'led'), -0.32, -0.55, 0.502, root, false);
-  (prizeRing as THREE.Mesh).rotation.x = 0; // face forward
+  mesh(new THREE.CircleGeometry(0.18, 32), M.dark, -0.3, -0.52, 0.49, root, false);
+  const prizeRing = mesh(new THREE.TorusGeometry(0.22, 0.022, 12, 48), track(M.doorLamp, 'led'), -0.3, -0.52, 0.502, root, false);
 
   // maintenance door + mascot sticker
   mesh(new RoundedBoxGeometry(0.38, 0.55, 0.02, 2, 0.01), M.body, 0.32, -0.52, 0.495, root);
@@ -172,6 +171,9 @@ export function buildMachine(theme: Theme = THEMES[0]): MachineParts {
   addPane(hz * 2, -hx - 0.01, 0, -Math.PI / 2, false);
   addPane(hz * 2, hx + 0.01, 0, Math.PI / 2, false);
 
+  // interior HAPPY GAMES banner strips (common on Gen-2)
+  { const ban = labelTexture('HAPPY GAMES  ·  PAW PLAY', '#ffffff', theme.accentHex, 512, 64, 'bold 36px sans-serif');
+    for (const y of [0.18, top - 0.12]) { const b = decal(ban, hx * 1.7, 0.045, 0, y, -hz + 0.01, root); (b.material as THREE.MeshStandardMaterial).emissiveMap = ban; (b.material as THREE.MeshStandardMaterial).emissive.setHex(0xffffff); (b.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.4; } }
   const softHex = '#' + theme.accentSoft.toString(16).padStart(6, '0');
   const bb = backboardPrint(theme.accentHex, softHex);
   const backMesh = mesh(new THREE.PlaneGeometry(hx * 2, top), new THREE.MeshStandardMaterial({ map: bb, roughness: 0.55, emissive: 0xffffff, emissiveMap: bb, emissiveIntensity: 0.22 }), 0, top / 2, -hz - 0.002, root, false);
@@ -241,7 +243,7 @@ export function buildMachine(theme: Theme = THEMES[0]): MachineParts {
 
   return {
     root, beam, carriage, cable, hub, prongs,
-    doorPos: V(-0.32, -0.55, 0.5),
+    doorPos: V(-0.3, -0.52, 0.5),
     ledStrips, prizeRing, themeables,
     signMesh, backMesh, ledgeLbl, doorDec, ringDec,
   };

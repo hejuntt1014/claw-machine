@@ -58,7 +58,7 @@ Object.assign(sun.shadow.camera, { left: -0.62, right: 0.62, top: 0.55, bottom: 
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.012; sun.shadow.radius = 4;
 const fill = new THREE.DirectionalLight(0xffe8f0, 0.9); fill.position.set(-0.8, 2.6, 3.2); scene.add(fill);
 const inner = new THREE.SpotLight(0xfff5fa, 2.8, 2.2, 1.0, 0.8, 1.5); inner.position.set(0, 1.17, 0.3); scene.add(inner, inner.target);
-const doorLight = new THREE.PointLight(0xffb060, 0, 0.5, 2); doorLight.position.set(-0.32, -0.55, 0.44); scene.add(doorLight);
+const doorLight = new THREE.PointLight(0xffb060, 0, 0.5, 2); doorLight.position.set(-0.3, -0.52, 0.44); scene.add(doorLight);
 
 // laser aiming dot (many newer machines have one); no beam
 const aim = new THREE.Mesh(new THREE.CircleGeometry(0.0065, 16), new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
@@ -164,7 +164,7 @@ let visFrac = 1, hFrac = 1, wideLayout = false;
 function fitDist() {
   const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   // portrait: fit the glass width; wide: fit the whole cabinet height between the side columns
-  return wideLayout ? Math.max(0.7 / (vt * camera.aspect * hFrac), 1.18 / (vt * visFrac)) : Math.max(0.6 / (vt * camera.aspect), 0.78 / (vt * visFrac));
+  return wideLayout ? Math.max(0.72 / (vt * camera.aspect * hFrac), 1.22 / (vt * visFrac)) : Math.max(0.62 / (vt * camera.aspect), 0.95 / (vt * visFrac));
 }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -181,13 +181,13 @@ function resize() {
   const bot = wideLayout ? 0 : $('deck').offsetHeight || 150;
   visFrac = Math.max(0.4, (h - top - bot - (wideLayout ? 12 : 0)) / h);
   hFrac = Math.max(0.3, (w - side * 2) / w);
-  target.y = wideLayout ? 0.6 : 0.6;
+  target.y = wideLayout ? 0.45 : 0.35;
   camera.setViewOffset(w, h, 0, (bot - top) / 2, w, h);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
   composer?.setSize(w, h);
   const d = fitDist();
-  views = [{ az: 0, pol: 1.36, dist: d }, { az: -0.62, pol: 1.3, dist: d * 1.02 }, { az: 0.0, pol: 0.72, dist: d * 0.9 }];
+  views = [{ az: 0, pol: wideLayout ? 1.32 : 1.28, dist: d }, { az: -0.55, pol: 1.28, dist: d * 1.05 }, { az: 0.0, pol: 0.7, dist: d * 0.92 }];
   controls.minDistance = d * 0.5; controls.maxDistance = d * 1.3;
 }
 function animCam(p1: THREE.Vector3, t1: THREE.Vector3, dur = 0.9) { camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1, t1, t: 0, dur }; }
