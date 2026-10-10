@@ -1,0 +1,28 @@
+{
+  "name": "claw-machine",
+  "version": "1.0.0",
+  "description": "3D 夹娃娃机 - mobile web claw machine (Three.js + Rapier)",
+  "scripts": {
+    "test": "node test/sim.ts",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host",
+    "sim": "node test/sim.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@dimforge/rapier3d": "^0.21.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "@types/three": "^0.186.0",
+    "playwright-core": "^1.64.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-wasm": "^3.6.0"
+  }
+}
