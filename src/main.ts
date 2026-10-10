@@ -106,13 +106,15 @@ $('winOk').addEventListener('click', () => { sfx.click(); hideWin(); takePrizes(
 
 // ---------------- post-processing / quality ----------------
 const QUALITY = ['低', '中', '高'];
-let quality = Number(params.get('q') ?? localStorage.getItem('claw_q') ?? (isTouch ? 1 : 2));
+const nav = navigator as Navigator & { deviceMemory?: number };
+const lowEnd = (nav.deviceMemory ?? 8) <= 2 || (navigator.hardwareConcurrency ?? 8) <= 4 || !renderer.capabilities.isWebGL2;
+let quality = Number(params.get('q') ?? localStorage.getItem('claw_q') ?? (isTouch ? (lowEnd ? 0 : 1) : 2));
 let composer: EffectComposer | null = null;
 let grain: ShaderPass | null = null;
 function applyQuality() {
   const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][quality]);
   renderer.setPixelRatio(dpr);
-  const ss = [512, 1024, 2048][quality];
+  const ss = [512, 1024, isTouch ? 2048 : 4096][quality];
   if (sun.shadow.mapSize.x !== ss) { sun.shadow.mapSize.set(ss, ss); sun.shadow.map?.dispose(); sun.shadow.map = null; }
   setFurShells([0, 5, 9][quality]);
   composer?.dispose(); composer = null;
@@ -142,19 +144,31 @@ function applyQuality() {
 // camera framing: like a person standing in front of the machine. The visible 3D area is between the
 // LED board and the control deck, so the projection is shifted to centre the cabinet in that window.
 const target = new THREE.Vector3(0, 0.6, 0);
-const BOARD = 50, DECK = 150;
 let views: { az: number; pol: number; dist: number }[] = [];
 let viewIdx = 0;
 let camAnim: { p0: THREE.Vector3; t0: THREE.Vector3; p1: THREE.Vector3; t1: THREE.Vector3; t: number; dur: number } | null = null;
-let visFrac = 1;
+let visFrac = 1, hFrac = 1, wideLayout = false;
 function fitDist() {
   const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  return Math.max(0.6 / (vt * camera.aspect), 0.78 / (vt * visFrac));
+  // portrait: fit the glass width; wide: fit the whole cabinet height between the side columns
+  return wideLayout ? Math.max(0.66 / (vt * camera.aspect * hFrac), 0.86 / (vt * visFrac)) : Math.max(0.6 / (vt * camera.aspect), 0.78 / (vt * visFrac));
 }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h;
-  const top = BOARD, bot = DECK; visFrac = Math.max(0.4, (h - top - bot) / h);
+  // layout: portrait = LED board on top + control deck at the bottom; wide = control columns at the sides
+  wideLayout = w > h * 1.05;
+  const compact = wideLayout && h < 560;
+  document.body.classList.toggle('wide', wideLayout);
+  document.body.classList.toggle('compact', compact);
+  const side = wideLayout ? Math.round(compact ? Math.min(190, w * 0.22) : Math.min(320, Math.max(230, w * 0.15))) : 0;
+  document.documentElement.style.setProperty('--side', side + 'px');
+  const top = $('board').offsetHeight || 50;
+  document.documentElement.style.setProperty('--top', top + 'px');
+  const bot = wideLayout ? 0 : $('deck').offsetHeight || 150;
+  visFrac = Math.max(0.4, (h - top - bot - (wideLayout ? 12 : 0)) / h);
+  hFrac = Math.max(0.3, (w - side * 2) / w);
+  target.y = wideLayout ? 0.52 : 0.6;
   camera.setViewOffset(w, h, 0, (bot - top) / 2, w, h);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
@@ -175,10 +189,25 @@ function goDoor() {
   viewIdx = -1;
   const t = new THREE.Vector3(machine.doorPos.x + 0.08, -0.52, 0.36);
   const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const d = Math.max(0.32 / (vt * camera.aspect), 0.34 / (vt * visFrac));
+  const d = Math.max(0.32 / (vt * camera.aspect * hFrac), 0.34 / (vt * visFrac));
   animCam(new THREE.Vector3(t.x + d * 0.1, t.y + d * 0.16, t.z + d * 0.98), t, 1.1);
 }
-window.addEventListener('resize', resize);
+let resizeRaf = 0;
+function onResize() {
+  cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(() => { resize(); if (!intro && viewIdx >= 0 && !(window as any).__claw?.closeup) goView(viewIdx); });
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
+window.visualViewport?.addEventListener('resize', onResize);
+document.body.classList.toggle('fine', matchMedia('(pointer: fine)').matches);
+// no page scroll / pinch-zoom / pull-to-refresh / long-press menus
+for (const ev of ['gesturestart', 'gesturechange', 'dblclick', 'contextmenu'] as const) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+// audio unlock on the first interaction of any kind
+const unlockAudio = () => sfx.unlock();
+document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
+document.addEventListener('keydown', unlockAudio, { once: true, capture: true });
 
 // ---------------- game ----------------
 const sfx = new Sfx();
@@ -250,9 +279,9 @@ function joyMove(e: PointerEvent) {
   joy.x = nx * k; joy.y = ny * k;
 }
 ui.grab.addEventListener('pointerdown', () => { if (game.state === 'idle' && !intro) { sfx.click(); status('请先投币'); } });
-ui.joy.addEventListener('pointerdown', (e) => { joy.id = e.pointerId; ui.joy.setPointerCapture(e.pointerId); joyMove(e); vibrate(8); e.preventDefault(); });
+ui.joy.addEventListener('pointerdown', (e) => { joy.id = e.pointerId; ui.joy.setPointerCapture(e.pointerId); ui.joy.classList.add('drag'); joyMove(e); vibrate(8); e.preventDefault(); });
 ui.joy.addEventListener('pointermove', (e) => { if (e.pointerId === joy.id) joyMove(e); });
-const joyEnd = (e: PointerEvent) => { if (e.pointerId !== joy.id) return; joy.id = -1; joy.x = joy.y = 0; ui.knob.style.transform = ''; };
+const joyEnd = (e: PointerEvent) => { if (e.pointerId !== joy.id) return; joy.id = -1; joy.x = joy.y = 0; ui.joy.classList.remove('drag'); ui.knob.style.transform = ''; };
 ui.joy.addEventListener('pointerup', joyEnd); ui.joy.addEventListener('pointercancel', joyEnd);
 ui.grab.addEventListener('pointerdown', (e) => { e.preventDefault(); doGrab(); });
 ui.insert.addEventListener('click', insertCoin);
@@ -260,9 +289,50 @@ const keys = new Set<string>();
 window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (intro) return;
+  if (e.repeat) { if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); return; }
   if (e.code === 'Space') { e.preventDefault(); if (game.state === 'idle') insertCoin(); else doGrab(); }
-  if (e.code === 'Enter') insertCoin();
+  else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyC') insertCoin();
+  else if (e.code === 'KeyV') { sfx.click(); goView((Math.max(0, viewIdx) + 1) % views.length); }
+  else if (/^(Digit|Numpad)[123]$/.test(e.code)) { sfx.click(); goView(Number(e.code.slice(-1)) - 1); }
+  else if (e.code === 'KeyM') $('snd').click();
+  else if (e.code === 'KeyF') toggleFullscreen();
+  else if (e.code === 'Escape') { if ($('win').classList.contains('show')) $('winOk').click(); $('drawer').classList.add('hidden'); }
+  if (e.code.startsWith('Arrow')) e.preventDefault();
 });
+window.addEventListener('blur', () => keys.clear());
+// fullscreen (hidden where unsupported, e.g. iPhone Safari)
+const fsEl = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+const fsSupported = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen);
+$('fs').classList.toggle('hidden', !fsSupported);
+function toggleFullscreen() {
+  if (!fsSupported) return;
+  const d = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
+  if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen ?? d.webkitExitFullscreen)?.call(d);
+  else (fsEl.requestFullscreen ?? fsEl.webkitRequestFullscreen)?.call(fsEl)?.catch?.(() => {});
+}
+$('fs').addEventListener('click', () => { sfx.click(); toggleFullscreen(); });
+// gamepad: left stick / d-pad move, A drop, X or Start coin, Y camera
+const padIn = { x: 0, y: 0 }; const padPrev: boolean[] = [];
+function readPad() {
+  padIn.x = padIn.y = 0;
+  const pads = navigator.getGamepads?.(); if (!pads) return;
+  for (const gp of pads) {
+    if (!gp) continue;
+    const b = (i: number) => !!gp.buttons[i]?.pressed;
+    let x = gp.axes[0] ?? 0, y = -(gp.axes[1] ?? 0);
+    if (Math.hypot(x, y) < 0.18) x = y = 0;
+    x += (b(15) ? 1 : 0) - (b(14) ? 1 : 0); y += (b(12) ? 1 : 0) - (b(13) ? 1 : 0);
+    padIn.x = Math.max(-1, Math.min(1, x)); padIn.y = Math.max(-1, Math.min(1, y));
+    const edge = (i: number) => b(i) && !padPrev[i];
+    if (!intro) {
+      if (edge(0)) { if (game.state === 'idle') insertCoin(); else doGrab(); }
+      if (edge(2) || edge(9)) insertCoin();
+      if (edge(3)) goView((Math.max(0, viewIdx) + 1) % views.length);
+    }
+    gp.buttons.forEach((_, i) => (padPrev[i] = b(i)));
+    break;
+  }
+}
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 function readKeys() {
   keyIn.x = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0);
@@ -358,14 +428,15 @@ function syncVisuals(dt: number, t: number) {
   if (showAim) { const sy = game.probeSurface(); aim.position.set(h.x, sy + 0.004, h.z); }
 }
 
+document.addEventListener('visibilitychange', () => { if (document.hidden) { sfx.ctx?.suspend(); keys.clear(); } else { last = performance.now(); acc = 0; if (!sfx.muted) sfx.ctx?.resume(); } });
 // ---------------- main loop ----------------
 let acc = 0, last = performance.now(), fpsAcc = 0, fpsN = 0, autoQ = !params.has('noauto') && !localStorage.getItem('claw_q'), playStart = 0, wasMoving = false;
 function frame(now: number) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (game.state === 'play') {
-    readKeys();
-    let ix = joy.x + keyIn.x, iy = joy.y + keyIn.y; const m = Math.hypot(ix, iy); if (m > 1) { ix /= m; iy /= m; }
+    readKeys(); readPad();
+    let ix = joy.x + keyIn.x + padIn.x, iy = joy.y + keyIn.y + padIn.y; const m = Math.hypot(ix, iy); if (m > 1) { ix /= m; iy /= m; }
     const fwd = tmpV.copy(target).sub(camera.position); fwd.y = 0; fwd.normalize();
     game.input.x = -fwd.z * ix + fwd.x * iy; game.input.z = fwd.x * ix + fwd.z * iy;
     timeLeft -= dt;

@@ -20,14 +20,27 @@
         <button id="snd" aria-label="声音"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button>
         <button id="cam" aria-label="换角度"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
         <button id="q" aria-label="画质">中</button>
+        <button id="fs" aria-label="全屏"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
       </div>
     </div>
     <div id="status"></div>
     <div id="toast"></div>
     <div id="deck">
-      <div id="joy"><div class="plate"><i></i><i></i><i></i><i></i></div><div class="washer"></div><div id="knob"></div></div>
-      <button id="insert"><span class="slot"></span><em>投币</em><small>1币1局</small></button>
-      <button id="grab"><span class="ring"><span class="cap"></span></span><em>下爪</em></button>
+      <div class="side l">
+        <div class="keys" aria-hidden="true">
+          <div><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></span><em>移动</em></div>
+          <div><span><kbd class="wide">空格</kbd></span><em>下爪</em></div>
+          <div><span><kbd>Enter</kbd> / <kbd>C</kbd></span><em>投币</em></div>
+          <div><span><kbd>V</kbd> / <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><em>视角</em></div>
+          <div><span><kbd>M</kbd> <kbd>F</kbd></span><em>静音 · 全屏</em></div>
+          <p>拖动鼠标换角度，滚轮缩放</p>
+        </div>
+        <div id="joy"><div class="plate"><i></i><i></i><i></i><i></i></div><div class="washer"></div><div id="knob"></div></div>
+      </div>
+      <div class="side r">
+        <button id="insert"><span class="slot"></span><em>投币</em><small>1币1局</small></button>
+        <button id="grab"><span class="ring"><span class="cap"></span></span><em>下爪</em></button>
+      </div>
     </div>
   </div>
   <div id="drawer" class="hidden">
