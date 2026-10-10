@@ -1,0 +1,121 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet 01</title>
+<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+<link rel="stylesheet" type="text/css" href="/css/style.css" />
+<link rel="canonical" href="https://www.arcade-game-sales.com/screenshots/ufo-catcher-second-crane.html" />
+<script type="text/javascript" src="/jquery/jquery.js"></script>
+<script type="text/javascript" src="/jscript/common.js"></script>
+<meta name="keywords" content="UFO, Catcher, 9, Second, Crane, Machine, Is, An, Arcade, Prize, Redemption, Game, Created, By, Sega, Corporation., It, Is, The, Newest, Iteration, Of, Sega's, Popular, UFO, Catcher, Crane, Games, Improvements, Include, No, Front, Pillar, And, A, Transpare" />
+<meta name="description" content="UFO Catcher 9 Second - Crane Machine is an arcade prize redemption game created by Sega Corporation. It is the newest iteration of Sega's popular UFO Catcher crane games, Improvements include no front pillar and a transparent plexiglass backing panel, allowing prizes to be viewed from all angles and providing operators flexibility in placing the machine. In addition, the playfield is broken up into sections, each of which have individually-adjustable heights.
+" />
+<script type="text/javascript">
+//<![CDATA[
+var shots_by_href = {"\/screenshots\/ufo-catcher-second-crane.html":{"title":"UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet","image":"https:\/\/static.arcade-game-sales.com\/images\/screenshots\/large\/83478.jpg","class":"reference","count":4,"next_url":"\/screenshots\/ufo-catcher-second-crane.html","prev_url":"\/screenshots\/ufo-catcher-second-crane.html"}};
+$(function() {
+	$("a").click(function(event) {
+		var href = $(this).attr("href");
+		if (shots_by_href[href] != null)
+		{
+			event.preventDefault();
+			var shot = shots_by_href[href];
+			$("title").text(shot["title"]);
+			$("#screenshot_full").css("background-image", "url(" + shot["image"] + ")").find("img").attr("title", shot["title"]);
+			$("#prev_url").attr("href", shot["prev_url"]);
+			$("#next_url").attr("href", shot["next_url"]);
+			$("#screenshot_caption").text(shot["title"]).append("<span style=\"white-space:nowrap;\"> | " + shot["count"] + " of 4 |</span>");
+
+			if (shot["class"] == "reference") $("#prev_url").closest("table").css("background-position", "0px -29px").css("background-color", "#69d");
+			else $("#prev_url").closest("table").css("background-position", "").css("background-color", "");
+
+			for (var k in shots_by_href) $(".custom_sprite_96[href='" + k + "']").css("border-color", "#ccc");
+			$(".custom_sprite_96[href='" + href + "']").css("border-color", "#06f").each(function() {
+				var parent = $(this).parent();
+				parent.scrollTop(Math.max(0, parent.scrollTop() - (10 + (parent.offset().top - $(this).offset().top))));
+			});
+		}
+	});
+});
+
+var preloaded = false;
+$(window).load(function() {
+	if (!preloaded)
+	{
+		preloaded = {};
+		for (var k in shots_by_href)
+		{
+			preloaded[k] = new Image();
+			preloaded[k].src = shots_by_href[k]["image"];
+		}
+	}
+});
+//]]>
+</script>
+
+</head>
+<body style="background:#f7f7f7;color:#000;width:858px;padding:4px;">
+<script type="text/javascript">
+//<![CDATA[
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+ga('create', 'UA-44697265-7', 'arcade-game-sales.com');
+ga('send', 'pageview');
+ga('require', 'ec');
+//]]>
+</script>
+
+<div style="float:right;height:677px;"></div>
+<div style="position:absolute;width:587px;">
+	<div class="machine_window" style="margin:10px;background:transparent;">
+		<div class="window_noclient bevel_50" style="height:50px;padding:0;background-position:0px -113px;">
+			<div class="window_noclient_title" style="text-align:right;margin:10px 50px 0 100px;">
+				UFO Catcher 9 Second - Crane Machine			</div>
+		</div>
+		<div class="window_border"><div class="window_client" style="text-align:center;">
+			<h1 id="screenshot_full" class="custom_sprite_550" style="margin:0;padding:0;background-image:url(https://static.arcade-game-sales.com/images/screenshots/large/83477.jpg);" title=""><img alt="" src="/_.gif" /></h1>
+		</div></div>
+		<table class="window_noclient" style="width:100%;"><tr>
+			<td style="vertical-align:middle;"><a class="blue_button" id="prev_url" href="">Previous</a></td>
+			<td id="screenshot_caption" style="width:100%;vertical-align:middle;font-weight:normal;text-align:center;"><span style="white-space:nowrap;"> |  of 4 |</span></td>
+			<td style="vertical-align:middle;"><a class="blue_button" id="next_url" href="">Next</a></td>
+		</tr></table>
+	</div>
+</div>
+
+<div style="margin-left:588px;">
+	<div style="text-align:right;padding:10px;"><a class="machine_link" href="#" onclick="window.close();return false">Close this window x</a></div>
+
+	<div class="machine_window" style="margin:20px 10px;">
+		<div class="window_noclient" style="font-weight:normal;padding:5px 4px 3px;">
+			<div class="window_noclient_title" style="font-weight:normal;font-size:100%;">Actual Product Images</div>
+			<div class="window_noclient_controlbox" style="padding:0;right:4px;top:5px;">3 Images</div>
+		</div>
+		<div class="window_border"><div class="window_client" style="overflow:auto;height:212px;text-align:center;">
+			<a class="custom_sprite_96" href="/screenshots/ufo-catcher-second-crane.html" style="border:1px solid #ccc;margin:4px;background-image:url(https://static.arcade-game-sales.com/images/screenshots/thumb/83477.jpg);" title="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet 01"><img alt="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet 01" src="/_.gif" /></a>
+			<a class="custom_sprite_96" href="/screenshots/ufo-catcher-second-crane.html" style="border:1px solid #ccc;margin:4px;background-image:url(https://static.arcade-game-sales.com/images/screenshots/thumb/83479.jpg);" title="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet 02"><img alt="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet 02" src="/_.gif" /></a>
+			<a class="custom_sprite_96" href="/screenshots/ufo-catcher-second-crane.html" style="border:1px solid #ccc;margin:4px;background-image:url(https://static.arcade-game-sales.com/images/screenshots/thumb/83480.jpg);" title="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet Close Up"><img alt="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet Close Up" src="/_.gif" /></a>
+		</div></div>
+	</div>
+	<div class="reference_window" style="margin:20px 10px;">
+		<div class="window_noclient" style="font-weight:normal;padding:5px 4px 3px;">
+			<div class="window_noclient_title" style="font-weight:normal;font-size:100%;">Reference Product Images</div>
+			<div class="window_noclient_controlbox" style="padding:0;right:4px;top:5px;">1 Image</div>
+		</div>
+		<div class="window_border"><div class="window_client" style="overflow:auto;height:212px;text-align:center;">
+			<a class="custom_sprite_96" href="/screenshots/ufo-catcher-second-crane.html" style="border:1px solid #ccc;margin:4px;background-image:url(https://static.arcade-game-sales.com/images/screenshots/thumb/83478.jpg);" title="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet"><img alt="UFO Catcher 9 Second - Crane Machine - UFO Catcher 9 Second - Cabinet" src="/_.gif" /></a>
+		</div></div>
+	</div>
+
+	<div style="text-align:right;padding:10px;"><a class="machine_link" href="/arcade-machines/crane-machines/ufo-catcher-second-crane/19652-1.html" onclick="if (window.opener) {window.opener.location = &quot;\/arcade-machines\/crane-machines\/ufo-catcher-second-crane\/19652-1.html&quot;;window.close();return false;}">UFO Catcher 9 Second - Crane Machine - Full Details &rarr;</a></div>
+</div>
+<br style="clear:both;" />
+
+</body>
+
+</html>

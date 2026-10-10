@@ -6,7 +6,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { ClawGame, CARRIAGE_Y, HUB_HH, HOLE, BIN_FLOOR_Y, PRIZE_TYPES, type Prize, type ClawState, type ContactPt, type GameEvent } from './physics.ts';
-import { buildMachine, buildRoom, buildEnvScene, M } from './models.ts';
+import { buildMachine, buildRoom, buildEnvScene, applyTheme, M, type MachineParts } from './models.ts';
+import { THEMES, type Theme } from './themes.ts';
 import { buildPrize, disposePlush, setFurShells, type PlushModel } from './plush.ts';
 import { Sfx, vibrate } from './audio.ts';
 
@@ -33,12 +34,12 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1d1a17);
-scene.fog = new THREE.Fog(0x1d1a17, 4, 10);
+scene.background = new THREE.Color(0xe8e4de);
+scene.fog = new THREE.Fog(0xe8e4de, 6, 14);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envTex = pmrem.fromScene(buildEnvScene(), 0.02).texture;
 scene.environment = envTex;
-scene.environmentIntensity = 0.5;
+scene.environmentIntensity = 0.65;
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 30);
 const controls = new OrbitControls(camera, canvas);
@@ -49,15 +50,15 @@ controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
 controls.enabled = false;
 
 // lights: dim warm mall ceiling + the cabinet's own cool-white tubes
-scene.add(new THREE.HemisphereLight(0xffe6c8, 0x2a2420, 0.35));
-const sun = new THREE.DirectionalLight(0xeef3ff, 1.7); // the cabinet tubes, as a shadow-casting key
+scene.add(new THREE.HemisphereLight(0xfff5f0, 0xc8c0b8, 0.55));
+const sun = new THREE.DirectionalLight(0xfff8f2, 1.5); // the cabinet tubes, as a shadow-casting key
 sun.position.set(0.05, 3.2, 0.35); scene.add(sun, sun.target);
 sun.castShadow = true;
 Object.assign(sun.shadow.camera, { left: -0.62, right: 0.62, top: 0.55, bottom: -0.55, near: 1.6, far: 4 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.012; sun.shadow.radius = 4;
-const fill = new THREE.DirectionalLight(0xffd8ae, 0.75); fill.position.set(-0.8, 2.6, 3.2); scene.add(fill);
-const inner = new THREE.SpotLight(0xf3f6ff, 2.4, 2.2, 1.0, 0.8, 1.5); inner.position.set(0, 1.17, 0.3); scene.add(inner, inner.target);
-const doorLight = new THREE.PointLight(0xffb060, 0, 0.5, 2); doorLight.position.set(-0.36, -0.48, 0.44); scene.add(doorLight);
+const fill = new THREE.DirectionalLight(0xffe8f0, 0.9); fill.position.set(-0.8, 2.6, 3.2); scene.add(fill);
+const inner = new THREE.SpotLight(0xfff5fa, 2.8, 2.2, 1.0, 0.8, 1.5); inner.position.set(0, 1.17, 0.3); scene.add(inner, inner.target);
+const doorLight = new THREE.PointLight(0xffb060, 0, 0.5, 2); doorLight.position.set(-0.32, -0.55, 0.44); scene.add(doorLight);
 
 // laser aiming dot (many newer machines have one); no beam
 const aim = new THREE.Mesh(new THREE.CircleGeometry(0.0065, 16), new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
@@ -65,8 +66,20 @@ aim.rotation.x = -Math.PI / 2; aim.renderOrder = 5; scene.add(aim);
 
 // world
 scene.add(buildRoom());
-const machine = buildMachine(); scene.add(machine.root);
-{ const bin = new THREE.Mesh(new THREE.BoxGeometry(0.238, 0.04, 0.27), new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 })); bin.position.set(machine.doorPos.x, BIN_FLOOR_Y - 0.021, 0.35); bin.receiveShadow = true; scene.add(bin); }
+let themeIdx = Number(localStorage.getItem('claw_theme') ?? 0) % THEMES.length;
+const machine = buildMachine(THEMES[themeIdx]); scene.add(machine.root);
+applyTheme(machine, THEMES[themeIdx]);
+function setTheme(i: number) {
+  themeIdx = ((i % THEMES.length) + THEMES.length) % THEMES.length;
+  localStorage.setItem('claw_theme', String(themeIdx));
+  applyTheme(machine, THEMES[themeIdx]);
+  const t = THEMES[themeIdx];
+  document.documentElement.style.setProperty('--accent', t.accentHex);
+  document.documentElement.style.setProperty('--accent-soft', '#' + t.accentSoft.toString(16).padStart(6, '0'));
+  document.documentElement.style.setProperty('--accent-dark', '#' + t.dark.toString(16).padStart(6, '0'));
+  document.querySelectorAll('#themes button').forEach((b, j) => b.classList.toggle('on', j === themeIdx));
+}
+{ const bin = new THREE.Mesh(new THREE.BoxGeometry(0.238, 0.04, 0.27), new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 })); bin.position.set(machine.doorPos.x, BIN_FLOOR_Y - 0.021, 0.34); bin.receiveShadow = true; scene.add(bin); }
 machine.root.traverse((o) => { o.castShadow = false; });
 for (const o of [machine.beam, machine.carriage, machine.hub, machine.cable, ...machine.prongs]) o.traverse((c) => { c.castShadow = true; });
 
@@ -126,12 +139,12 @@ function applyQuality() {
     composer.addPass(new RenderPass(scene, camera));
     composer.addPass(new OutputPass());
     grain = new ShaderPass({
-      uniforms: { tDiffuse: { value: null }, uT: { value: 0 }, uAmt: { value: 0.035 } },
+      uniforms: { tDiffuse: { value: null }, uT: { value: 0 }, uAmt: { value: 0.022 } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: `uniform sampler2D tDiffuse; uniform float uT; uniform float uAmt; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uT) * 43758.5453); }
         void main(){ vec4 c = texture2D(tDiffuse, vUv);
-          vec2 q = vUv - 0.5; float v = 1.0 - dot(q, q) * 0.55;
+          vec2 q = vUv - 0.5; float v = 1.0 - dot(q, q) * 0.35;
           c.rgb *= v; c.rgb += (h(gl_FragCoord.xy) - 0.5) * uAmt;
           gl_FragColor = vec4(c.rgb, 1.0); }`,
     });
@@ -216,27 +229,21 @@ const models = new Map<number, PlushModel>();
 let timeLeft = 0, lastTick = 99, intro = true;
 let coins = store.coins;
 const ui = {
-  coins: $('coins').querySelector('.digits') as HTMLElement, timer: $('timer').querySelector('.digits') as HTMLElement, bag: $('bag').querySelector('.digits') as HTMLElement,
+  coins: $('coins').querySelector('b')!, timer: $('timer').querySelector('b')!, bag: $('bag').querySelector('b')!,
   insert: $<HTMLButtonElement>('insert'), grab: $<HTMLButtonElement>('grab'), joy: $('joy'), knob: $('knob'), status: $('status'), toast: $('toast'),
 };
-// 7-segment LED digits
-const SEGS = ['a', 'b', 'c', 'd1', 'e', 'f', 'g'];
-const DIG: Record<string, string> = { '0': 'abcd1ef', '1': 'bc', '2': 'abd1eg', '3': 'abcd1g', '4': 'bcfg', '5': 'acd1fg', '6': 'acd1efg', '7': 'abc', '8': 'abcd1efg', '9': 'abcd1fg', '-': 'g', ' ': '' };
-function initSeg(el: HTMLElement, n: number) { el.innerHTML = Array.from({ length: n }, () => `<i class="d">${SEGS.map((c) => `<s class="${c}"></s>`).join('')}</i>`).join(''); }
-const segCache = new Map<HTMLElement, string>();
-function setSeg(el: HTMLElement, v: string) {
-  if (segCache.get(el) === v) return; segCache.set(el, v);
-  const ds = el.children; const str = v.padStart(ds.length, ' ').slice(-ds.length);
-  for (let i = 0; i < ds.length; i++) { const on = DIG[str[i]] ?? ''; for (const s of Array.from(ds[i].children)) s.classList.toggle('on', on.split(/(?=[a-g])/).includes(s.className.replace(' on', ''))); }
+// theme chips
+{ const host = $('themes');
+  THEMES.forEach((t, i) => { const b = document.createElement('button'); b.type = 'button'; b.title = t.name; b.style.background = t.accentHex; b.addEventListener('click', () => { sfx.click(); setTheme(i); }); host.appendChild(b); });
+  setTheme(themeIdx);
 }
-initSeg(ui.coins, 2); initSeg(ui.timer, 2); initSeg(ui.bag, 2);
 let toastT = 0;
 function toast(html: string, _lose = false, dur = 2.2) { ui.toast.innerHTML = html; ui.toast.classList.add('show'); toastT = dur; }
 function status(text: string) { if (text) ui.status.textContent = text; ui.status.classList.toggle('show', !!text); }
 function bagCount() { return Object.values(store.bag).reduce((a, b) => a + b, 0); }
 function refreshUI() {
-  setSeg(ui.coins, String(Math.min(99, coins)));
-  setSeg(ui.bag, String(Math.min(99, bagCount())));
+  ui.coins.textContent = String(coins);
+  ui.bag.textContent = String(bagCount());
   const st = game?.state ?? 'idle';
   const idle = st === 'idle', play = st === 'play';
   ui.insert.classList.toggle('gone', !idle);
@@ -244,7 +251,7 @@ function refreshUI() {
   ui.insert.querySelector('small')!.textContent = coins > 0 ? '1币1局' : '送10币';
   ui.grab.classList.toggle('disabled', !play);
   ui.joy.classList.toggle('disabled', !play);
-  if (!play) setSeg(ui.timer, '--');
+  if (!play) ui.timer.textContent = '--';
   $('timer').classList.remove('warn');
   status({ idle: coins > 0 ? '请投币' : '币用完了，点「领币」', play: '移动摇杆，按红色按钮下爪', descend: '', close: '', lift: '', hold: '', return: '', release: '', reset: '' }[st]);
 }
@@ -416,13 +423,14 @@ function syncVisuals(dt: number, t: number) {
   const hubTop = tmpV2.set(0, HUB_HH + 0.03, 0).applyQuaternion(machine.hub.quaternion).add(machine.hub.position);
   const dir = hubTop.sub(top); const len = dir.length();
   machine.cable.position.copy(top); machine.cable.quaternion.setFromUnitVectors(down, dir.normalize()); machine.cable.scale.set(1, len, 1);
-  // pickup-window lamp: blinks after a win, then stays on softly while a prize sits there
-  const blinkOn = doorBlink > 0 ? (Math.floor(t * 6) % 2 ? 1 : 0.08) : doorHold > 0 ? 0.55 : 0.05;
-  M.doorLamp.emissiveIntensity = blinkOn * 3.5;
-  doorLight.intensity = blinkOn * 0.35;
+  // prize-out ring + LED rims: breathe normally, flash on win
+  const blinkOn = doorBlink > 0 ? (Math.floor(t * 6) % 2 ? 1 : 0.1) : doorHold > 0 ? 0.7 : 0.2 + 0.15 * Math.sin(t * 2.2);
+  M.doorLamp.emissiveIntensity = blinkOn * 2.8;
+  doorLight.intensity = blinkOn * 0.4;
   doorBlink = Math.max(0, doorBlink - dt); doorHold = Math.max(0, doorHold - dt);
-  // the fluorescent tubes have a barely visible 50 Hz-ish shimmer
-  M.tube.emissiveIntensity = 2.6 + Math.sin(t * 13.1) * 0.03 + Math.sin(t * 2.3) * 0.02;
+  const chase = 1.4 + 0.7 * Math.sin(t * 3.5) + (doorBlink > 0 ? 1.5 * Math.abs(Math.sin(t * 12)) : 0);
+  M.ledStrip.emissiveIntensity = chase;
+  M.tube.emissiveIntensity = 2.8 + Math.sin(t * 13.1) * 0.03;
   const showAim = game.state === 'play';
   aim.visible = showAim;
   if (showAim) { const sy = game.probeSurface(); aim.position.set(h.x, sy + 0.004, h.z); }
@@ -441,7 +449,7 @@ function frame(now: number) {
     game.input.x = -fwd.z * ix + fwd.x * iy; game.input.z = fwd.x * ix + fwd.z * iy;
     timeLeft -= dt;
     const sec = Math.ceil(Math.max(0, timeLeft));
-    setSeg(ui.timer, String(sec).padStart(2, '0'));
+    ui.timer.textContent = String(sec);
     if (sec <= 5 && sec !== lastTick) { lastTick = sec; $('timer').classList.add('warn'); sfx.tick(); }
     if (timeLeft <= 0) doGrab();
   }
@@ -513,6 +521,6 @@ async function boot() {
     $('start').classList.add('hide'); playStart = performance.now();
     intro = false; controls.enabled = true; document.body.classList.remove('intro'); goView(0);
   });
-  (window as any).__claw = { game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
+  (window as any).__claw = { game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, setTheme, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
 }
 boot().catch((e) => { console.error(e); $('loadTxt').textContent = '加载失败: ' + e; });
