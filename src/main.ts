@@ -362,7 +362,7 @@ window.addEventListener('keydown', (e) => {
   else if (/^(Digit|Numpad)[123]$/.test(e.code)) { sfx.click(); goView(Number(e.code.slice(-1)) - 1); }
   else if (e.code === 'KeyM') $('snd').click();
   else if (e.code === 'KeyF') toggleFullscreen();
-  else if (e.code === 'Escape') { if ($('win').classList.contains('show')) $('winOk').click(); closeModal('drawer'); setSettings(false); }
+  else if (e.code === 'Escape') { if ($('win').classList.contains('show')) $('winOk').click(); closeModal('drawer'); closeModal('nocoin'); setSettings(false); }
   if (e.code.startsWith('Arrow')) e.preventDefault();
 });
 window.addEventListener('blur', () => keys.clear());
@@ -421,6 +421,7 @@ $('claim').addEventListener('click', () => { coins = 10; store.coins = coins; sf
 $('later').addEventListener('click', () => { sfx.click(); closeModal('nocoin'); });
 // first-run onboarding (3 steps, skippable, remembered)
 let obStep = 0;
+if (!isTouch) { const ps = document.querySelectorAll('#onboard .step p'); ps[0].textContent = '用 W A S D / 方向键 或拖动摇杆，把爪子移到娃娃正上方'; ps[1].textContent = '对准后按空格或红色按钮，爪子会下降抓取'; }
 function showGuide(i: number) {
   obStep = i;
   document.querySelectorAll('#onboard .step').forEach((s, j) => s.classList.toggle('on', j === i));
