@@ -31,6 +31,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
+renderer.info.autoReset = false;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
@@ -439,8 +440,10 @@ function syncVisuals(dt: number, t: number) {
 document.addEventListener('visibilitychange', () => { if (document.hidden) { sfx.ctx?.suspend(); keys.clear(); } else { last = performance.now(); acc = 0; if (!sfx.muted) sfx.ctx?.resume(); } });
 // ---------------- main loop ----------------
 let acc = 0, last = performance.now(), fpsAcc = 0, fpsN = 0, autoQ = !params.has('noauto') && !localStorage.getItem('claw_q'), playStart = 0, wasMoving = false;
+const perf = { cpu: [] as number[], calls: 0, tris: 0, geo: 0, tex: 0 };
 function frame(now: number) {
   requestAnimationFrame(frame);
+  const t0 = performance.now(); renderer.info.reset();
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (game.state === 'play') {
     readKeys(); readPad();
@@ -486,6 +489,8 @@ function frame(now: number) {
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) ui.toast.classList.remove('show'); }
   if (grain) grain.uniforms.uT.value = (now / 1000) % 100;
   if (composer) composer.render(); else renderer.render(scene, camera);
+  perf.cpu.push(performance.now() - t0); if (perf.cpu.length > 240) perf.cpu.shift();
+  perf.calls = renderer.info.render.calls; perf.tris = renderer.info.render.triangles; perf.geo = renderer.info.memory.geometries; perf.tex = renderer.info.memory.textures;
   camera.position.x -= sx; camera.position.y -= sy;
   if (autoQ && playStart && now - playStart > 1500) {
     fpsAcc += dt; fpsN++;
@@ -521,6 +526,6 @@ async function boot() {
     $('start').classList.add('hide'); playStart = performance.now();
     intro = false; controls.enabled = true; document.body.classList.remove('intro'); goView(0);
   });
-  (window as any).__claw = { game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, setTheme, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
+  (window as any).__claw = { perf, renderer, game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, setTheme, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
 }
 boot().catch((e) => { console.error(e); $('loadTxt').textContent = '加载失败: ' + e; });
