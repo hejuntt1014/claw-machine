@@ -62,8 +62,15 @@ const inner = new THREE.SpotLight(0xfff5fa, 2.8, 2.2, 1.0, 0.8, 1.5); inner.posi
 const doorLight = new THREE.PointLight(0xffb060, 0, 0.5, 2); doorLight.position.set(-0.3, -0.52, 0.44); scene.add(doorLight);
 
 // laser aiming dot (many newer machines have one); no beam
-const aim = new THREE.Mesh(new THREE.CircleGeometry(0.0065, 16), new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
-aim.rotation.x = -Math.PI / 2; aim.renderOrder = 5; scene.add(aim);
+// guide under the claw: soft contact shadow + theme-coloured target ring with a centre dot
+const aim = new THREE.Group(); scene.add(aim);
+const aimRingMat = new THREE.MeshBasicMaterial({ color: THEMES[0].led, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false });
+{ const shadowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d')!; const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,.42)'); gr.addColorStop(0.6, 'rgba(0,0,0,.16)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  const sh = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.11), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.017, 0.021, 32), aimRingMat);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0045, 16), aimRingMat);
+  for (const m of [sh, ring, dot]) { m.rotation.x = -Math.PI / 2; m.renderOrder = 5; aim.add(m); }
+  ring.position.y = dot.position.y = 0.001; }
 
 // world
 scene.add(buildRoom());
@@ -79,6 +86,8 @@ function setTheme(i: number) {
   document.documentElement.style.setProperty('--accent-soft', '#' + t.accentSoft.toString(16).padStart(6, '0'));
   document.documentElement.style.setProperty('--accent-dark', '#' + t.dark.toString(16).padStart(6, '0'));
   document.querySelectorAll('#themes button').forEach((b, j) => b.classList.toggle('on', j === themeIdx));
+  aimRingMat.color.setHex(t.led);
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', '#' + t.accentSoft.toString(16).padStart(6, '0'));
 }
 { const bin = new THREE.Mesh(new THREE.BoxGeometry(0.238, 0.04, 0.27), new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.8 })); bin.position.set(machine.doorPos.x, BIN_FLOOR_Y - 0.021, 0.34); bin.receiveShadow = true; scene.add(bin); }
 machine.root.traverse((o) => { o.castShadow = false; });
@@ -88,13 +97,39 @@ for (const o of [machine.beam, machine.carriage, machine.hub, machine.cable, ...
 let winNo = 0, doorBlink = 0, doorHold = 0, doorCam = 0;
 function showWin(prize: Prize) {
   winNo++;
-  $('winNo').textContent = `第 ${bagCount()} 个`;
-  $('winName').textContent = `${prize.type.name} · ${prize.colorName}`;
-  $('winSub').textContent = '已掉进取物口，记得拿走';
+  $('winName').textContent = prize.type.name;
+  $('winSub').textContent = `${prize.colorName} · 你的第 ${bagCount()} 个奖品`;
+  startPreview(prize);
   $('win').classList.add('show');
   goDoor(); doorCam = 3.5;
 }
-function hideWin() { $('win').classList.remove('show'); if (viewIdx < 0) { doorCam = 0; goView(0); } }
+// small turntable preview of the won toy, rendered once per frame into its own little canvas
+let prev: { r: THREE.WebGLRenderer; s: THREE.Scene; c: THREE.PerspectiveCamera } | null = null, prevModel: PlushModel | null = null, prevOn = false;
+function startPreview(prize: Prize) {
+  const cv = $<HTMLCanvasElement>('winPrev');
+  if (!prev) {
+    try {
+      const r = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, powerPreference: 'low-power' });
+      r.setPixelRatio(1); r.setSize(240, 240, false); r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+      const s = new THREE.Scene(); s.add(new THREE.HemisphereLight(0xffffff, 0xe6d8de, 2.4));
+      const d = new THREE.DirectionalLight(0xffffff, 2.4); d.position.set(0.6, 1.4, 1.6); s.add(d);
+      const c = new THREE.PerspectiveCamera(28, 1, 0.01, 5); prev = { r, s, c };
+    } catch { cv.style.display = 'none'; return; }
+  }
+  if (prevModel) { prev.s.remove(prevModel.group); disposePlush(prevModel); }
+  prevModel = buildPrize(prize.type, prize.color, prize.seed);
+  const box = new THREE.Box3().setFromObject(prevModel.group); const ctr = box.getCenter(new THREE.Vector3()); const sz = box.getSize(new THREE.Vector3()).length();
+  prevModel.group.position.sub(ctr); prevModel.u.uCenter.value.set(0, 0, 0); prevModel.u.uFloorY.value = -10;
+  prev.c.position.set(0, sz * 0.35, sz * 2.0); prev.c.lookAt(0, 0, 0);
+  const pivot = new THREE.Group(); pivot.add(prevModel.group); prev.s.add(pivot); (prevModel as any).pivot = pivot;
+  prevOn = true;
+}
+function renderPreview(t: number) {
+  if (!prevOn || !prev || !prevModel) return;
+  const pv = (prevModel as any).pivot as THREE.Group; pv.rotation.y = t * 0.9; pv.position.y = Math.sin(t * 2.2) * 0.004;
+  prev.r.render(prev.s, prev.c);
+}
+function hideWin() { prevOn = false; $('win').classList.remove('show'); if (viewIdx < 0) { doorCam = 0; goView(0); } }
 // taking prizes out of the pickup window: the toy slides out through the flap and disappears
 const taking = new Map<number, { m: PlushModel; t: number; p0: THREE.Vector3; s0: number }>();
 function takePrizes() {
@@ -130,7 +165,7 @@ function applyQuality() {
   renderer.setPixelRatio(dpr);
   const ss = [512, 1024, isTouch ? 2048 : 4096][quality];
   if (sun.shadow.mapSize.x !== ss) { sun.shadow.mapSize.set(ss, ss); sun.shadow.map?.dispose(); sun.shadow.map = null; }
-  setFurShells([0, 5, 9][quality]);
+  setFurShells([0, 4, 7][quality]);
   composer?.dispose(); composer = null;
   if (quality > 0) {
     const w = window.innerWidth, h = window.innerHeight;
@@ -151,7 +186,7 @@ function applyQuality() {
     });
     composer.addPass(grain);
   } else grain = null;
-  $('q').textContent = QUALITY[quality];
+  document.querySelectorAll<HTMLElement>('#qseg button').forEach((b) => b.classList.toggle('on', Number(b.dataset.q) === quality));
   resize();
 }
 
@@ -231,16 +266,26 @@ let timeLeft = 0, lastTick = 99, intro = true;
 let coins = store.coins;
 const ui = {
   coins: $('coins').querySelector('b')!, timer: $('timer').querySelector('b')!, bag: $('bag').querySelector('b')!,
-  insert: $<HTMLButtonElement>('insert'), grab: $<HTMLButtonElement>('grab'), joy: $('joy'), knob: $('knob'), status: $('status'), toast: $('toast'),
+  insert: $<HTMLButtonElement>('insert'), grab: $<HTMLButtonElement>('grab'), joy: $('joy'), knob: $('knob'), hint: $('hint'), hintTxt: $('hintTxt'),
 };
 // theme chips
 { const host = $('themes');
   THEMES.forEach((t, i) => { const b = document.createElement('button'); b.type = 'button'; b.title = t.name; b.style.background = t.accentHex; b.addEventListener('click', () => { sfx.click(); setTheme(i); }); host.appendChild(b); });
   setTheme(themeIdx);
 }
-let toastT = 0;
-function toast(html: string, _lose = false, dur = 2.2) { ui.toast.innerHTML = html; ui.toast.classList.add('show'); toastT = dur; }
-function status(text: string) { if (text) ui.status.textContent = text; ui.status.classList.toggle('show', !!text); }
+// ---- toasts: one at a time, top-centre under the HUD, icon + title + optional detail line ----
+type ToastKind = 'info' | 'ok' | 'warn' | 'miss' | 'coin' | 'win';
+const TICON: Record<ToastKind, string> = { info: 'i-alert', ok: 'i-check', warn: 'i-clock', miss: 'i-hand', coin: 'i-coin', win: 'i-gift' };
+let toastEl: HTMLElement | null = null, toastT = 0;
+function dropToast() { const el = toastEl; toastEl = null; if (!el) return; el.classList.remove('in'); el.classList.add('out'); setTimeout(() => el.remove(), 240); }
+function toast(title: string, kind: ToastKind = 'info', sub = '', dur = 1.8) {
+  dropToast();
+  const el = document.createElement('div'); el.className = 'toast ' + kind; el.setAttribute('role', 'status');
+  el.innerHTML = `<span class="ti"><svg><use href="#${TICON[kind]}"/></svg></span><span class="tt"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>`;
+  $('toasts').appendChild(el); void el.offsetWidth; el.classList.add('in'); toastEl = el; toastT = dur;
+}
+// ---- persistent state line above the drop button ----
+function status(text: string, kind = 'idle') { ui.hintTxt.textContent = text; ui.hint.className = 'hint ' + kind; }
 function bagCount() { return Object.values(store.bag).reduce((a, b) => a + b, 0); }
 function refreshUI() {
   ui.coins.textContent = String(coins);
@@ -248,23 +293,31 @@ function refreshUI() {
   const st = game?.state ?? 'idle';
   const idle = st === 'idle', play = st === 'play';
   ui.insert.classList.toggle('gone', !idle);
-  ui.insert.querySelector('em')!.textContent = coins > 0 ? '投币' : '领币';
-  ui.insert.querySelector('small')!.textContent = coins > 0 ? '1币1局' : '送10币';
-  ui.grab.classList.toggle('disabled', !play);
+  ui.insert.classList.toggle('attn', idle && !intro);
+  ui.insert.querySelector('small')!.textContent = coins > 0 ? '1 币 / 局' : '币不足';
+  ui.grab.classList.toggle('disabled', !play); ui.grab.setAttribute('aria-disabled', String(!play));
+  $('coins').classList.toggle('empty', coins <= 0);
   ui.joy.classList.toggle('disabled', !play);
   if (!play) ui.timer.textContent = '--';
-  $('timer').classList.remove('warn');
-  status({ idle: coins > 0 ? '请投币' : '币用完了，点「领币」', play: '移动摇杆，按红色按钮下爪', descend: '', close: '', lift: '', hold: '', return: '', release: '', reset: '' }[st]);
+  if (!play) $('timer').classList.remove('urgent');
+  const S: Record<string, [string, string]> = {
+    idle: coins > 0 ? ['投币开始游戏', 'idle'] : ['币用完了 · 点投币领取', 'empty'],
+    play: [isTouch ? '对准娃娃，按下爪' : '对准娃娃，按空格下爪', 'play'],
+    descend: ['下爪中…', 'busy'], close: ['合爪中…', 'busy'], lift: ['提起中…', 'busy'], hold: ['提起中…', 'busy'],
+    return: ['送往出口…', 'busy'], release: ['松爪…', 'busy'], reset: ['复位中…', 'busy'],
+  };
+  const [txt, kind] = S[st] ?? ['', 'busy']; status(txt, kind);
 }
 function insertCoin() {
   sfx.unlock();
   if (game.state !== 'idle') return;
   if ($('win').classList.contains('show')) takePrizes();
   hideWin();
-  if (coins <= 0) { coins = 10; store.coins = coins; sfx.coin(); toast('已赠送 10 币', false, 1.6); refreshUI(); return; }
+  if (coins <= 0) { sfx.click(); openModal('nocoin'); return; }
   coins--; store.coins = coins;
   sfx.coin(); vibrate(30);
-  game.startRound(); timeLeft = ROUND_TIME; lastTick = 99;
+  game.startRound(); timeLeft = ROUND_TIME; lastTick = 99; held = null; heldShown = false;
+  toast('投币成功', 'coin', `本局 ${ROUND_TIME} 秒 · 剩余 ${coins} 币`, 1.5);
   refreshUI();
 }
 function doGrab() {
@@ -286,7 +339,11 @@ function joyMove(e: PointerEvent) {
   const k = m < dead ? 0 : (m - dead) / (1 - dead) / m;
   joy.x = nx * k; joy.y = ny * k;
 }
-ui.grab.addEventListener('pointerdown', () => { if (game.state === 'idle' && !intro) { sfx.click(); status('请先投币'); } });
+ui.grab.addEventListener('pointerdown', () => {
+  if (game.state !== 'idle' || intro) return;
+  sfx.click(); vibrate(15); toast(coins > 0 ? '请先投币' : '币用完了', 'info', coins > 0 ? '点右下角「投币」开始一局' : '点「投币」领取免费游戏币', 1.6);
+  ui.insert.classList.remove('nudge'); void ui.insert.offsetWidth; ui.insert.classList.add('nudge');
+});
 ui.joy.addEventListener('pointerdown', (e) => { joy.id = e.pointerId; ui.joy.setPointerCapture(e.pointerId); ui.joy.classList.add('drag'); joyMove(e); vibrate(8); e.preventDefault(); });
 ui.joy.addEventListener('pointermove', (e) => { if (e.pointerId === joy.id) joyMove(e); });
 const joyEnd = (e: PointerEvent) => { if (e.pointerId !== joy.id) return; joy.id = -1; joy.x = joy.y = 0; ui.joy.classList.remove('drag'); ui.knob.style.transform = ''; };
@@ -297,6 +354,7 @@ const keys = new Set<string>();
 window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (intro) return;
+  if (/^(Key[WASD]|Arrow|Space|Enter)/.test(e.code)) keysUsed();
   if (e.repeat) { if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); return; }
   if (e.code === 'Space') { e.preventDefault(); if (game.state === 'idle') insertCoin(); else doGrab(); }
   else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyC') insertCoin();
@@ -304,7 +362,7 @@ window.addEventListener('keydown', (e) => {
   else if (/^(Digit|Numpad)[123]$/.test(e.code)) { sfx.click(); goView(Number(e.code.slice(-1)) - 1); }
   else if (e.code === 'KeyM') $('snd').click();
   else if (e.code === 'KeyF') toggleFullscreen();
-  else if (e.code === 'Escape') { if ($('win').classList.contains('show')) $('winOk').click(); $('drawer').classList.add('hidden'); }
+  else if (e.code === 'Escape') { if ($('win').classList.contains('show')) $('winOk').click(); closeModal('drawer'); setSettings(false); }
   if (e.code.startsWith('Arrow')) e.preventDefault();
 });
 window.addEventListener('blur', () => keys.clear());
@@ -348,23 +406,64 @@ function readKeys() {
 }
 
 // tool buttons
-$('snd').addEventListener('click', () => { sfx.unlock(); sfx.setMuted(!sfx.muted); $('snd').classList.toggle('off', sfx.muted); });
+$('snd').addEventListener('click', () => { sfx.unlock(); sfx.setMuted(!sfx.muted); $('snd').setAttribute('aria-checked', String(!sfx.muted)); if (!sfx.muted) sfx.click(); });
+// settings popover
+const setPop = $('settings');
+function setSettings(open: boolean) { setPop.classList.toggle('show', open); $('set').classList.toggle('on', open); $('set').setAttribute('aria-expanded', String(open)); }
+$('set').addEventListener('click', (e) => { e.stopPropagation(); sfx.click(); setSettings(!setPop.classList.contains('show')); });
+setPop.addEventListener('pointerdown', (e) => e.stopPropagation());
+document.addEventListener('pointerdown', (e) => { if (setPop.classList.contains('show') && !(e.target as HTMLElement).closest('#set')) setSettings(false); });
+document.querySelectorAll<HTMLElement>('#qseg button').forEach((b) => b.addEventListener('click', () => { sfx.click(); quality = Number(b.dataset.q); localStorage.setItem('claw_q', String(quality)); autoQ = false; applyQuality(); }));
+// modals
+function openModal(id: string) { dropToast(); const m = $(id); m.classList.remove('hidden'); void m.offsetWidth; m.classList.add('show'); }
+function closeModal(id: string) { const m = $(id); m.classList.remove('show'); setTimeout(() => { if (!m.classList.contains('show')) m.classList.add('hidden'); }, 220); }
+$('claim').addEventListener('click', () => { coins = 10; store.coins = coins; sfx.coin(); vibrate(30); closeModal('nocoin'); refreshUI(); toast('领取成功', 'coin', '+10 游戏币，祝你好运', 1.6); });
+$('later').addEventListener('click', () => { sfx.click(); closeModal('nocoin'); });
+// first-run onboarding (3 steps, skippable, remembered)
+let obStep = 0;
+function showGuide(i: number) {
+  obStep = i;
+  document.querySelectorAll('#onboard .step').forEach((s, j) => s.classList.toggle('on', j === i));
+  document.querySelectorAll('#onboard .dots i').forEach((s, j) => s.classList.toggle('on', j === i));
+  $('obNext').textContent = i === 2 ? '开始玩' : '下一步';
+}
+function endGuide() { localStorage.setItem('claw_guide', '1'); closeModal('onboard'); refreshUI(); }
+$('obNext').addEventListener('click', () => { sfx.click(); if (obStep < 2) showGuide(obStep + 1); else endGuide(); });
+$('obSkip').addEventListener('click', () => { sfx.click(); endGuide(); });
+$('replayGuide').addEventListener('click', () => { sfx.click(); setSettings(false); showGuide(0); openModal('onboard'); });
+// PC key panel: visible until the player has used the keyboard, then tucks away (re-open from settings)
+function keysUsed() { if (localStorage.getItem('claw_keys')) return; localStorage.setItem('claw_keys', '1'); setTimeout(() => document.body.classList.add('keys-off'), 2500); }
+if (localStorage.getItem('claw_keys')) document.body.classList.add('keys-off');
+$('keysClose').addEventListener('click', () => { sfx.click(); localStorage.setItem('claw_keys', '1'); document.body.classList.add('keys-off'); });
+$('showKeys').addEventListener('click', () => { sfx.click(); setSettings(false); document.body.classList.remove('keys-off'); });
+// light haptic tick on every button press
+document.addEventListener('pointerdown', (e) => { const b = (e.target as HTMLElement).closest?.('.btn'); if (b && !b.classList.contains('disabled')) vibrate(6); }, { passive: true });
 $('cam').addEventListener('click', () => { sfx.click(); goView((viewIdx + 1) % views.length); });
-$('q').addEventListener('click', () => { quality = (quality + 1) % 3; localStorage.setItem('claw_q', String(quality)); autoQ = false; applyQuality(); toast(`画质：${QUALITY[quality]}`, true, 1.0); });
 $('bag').addEventListener('click', () => {
   const bag = store.bag; const list = $('bagList'); list.innerHTML = '';
-  for (const t of PRIZE_TYPES) { const n = bag[t.id] ?? 0; const d = document.createElement('div'); d.className = 'it' + (n ? '' : ' none'); d.innerHTML = `<span>${t.name}</span><b>${n}</b>`; list.appendChild(d); }
-  $('drawer').classList.remove('hidden');
+  sfx.click(); let kinds = 0;
+  for (const t of PRIZE_TYPES) {
+    const n = bag[t.id] ?? 0; if (n) kinds++;
+    const d = document.createElement('div'); d.className = 'it' + (n ? '' : ' none');
+    const col = '#' + t.colors[0].toString(16).padStart(6, '0');
+    d.innerHTML = `<span class="sw" style="--c:${col}"></span><span class="nm">${t.name}</span><span class="ct">${n ? '×' + n : '未获得'}</span>`;
+    list.appendChild(d);
+  }
+  $('bagTotal').textContent = `${kinds}/${PRIZE_TYPES.length} 种 · 共 ${bagCount()} 个`;
+  openModal('drawer');
 });
-$('closeBag').addEventListener('click', () => $('drawer').classList.add('hidden'));
+$('closeBag').addEventListener('click', () => { sfx.click(); closeModal('drawer'); });
+$('drawer').addEventListener('click', (e) => { if (e.target === $('drawer')) closeModal('drawer'); });
 
 // ---------------- events ----------------
 let lastThud = 0;
+let held: Prize | null = null, heldNear = false, heldShown = false;
 function onEvent(e: GameEvent) {
   switch (e.type) {
     case 'spawn': { const m = buildPrize(e.prize.type, e.prize.color, e.prize.seed); m.group.scale.setScalar(e.prize.scale); models.set(e.prize.uid, m); scene.add(m.group); break; }
     case 'remove': { const m = models.get(e.prize.uid); if (m) { scene.remove(m.group); disposePlush(m); models.delete(e.prize.uid); } break; }
     case 'win': {
+      dropToast();
       const bag = store.bag; bag[e.prize.type.id] = (bag[e.prize.type.id] ?? 0) + 1; store.bag = bag;
       sfx.chute(); vibrate([40, 60, 120]); doorBlink = 3.2; doorHold = 12;
       setTimeout(() => { sfx.win(); showWin(e.prize); }, 450);
@@ -374,7 +473,13 @@ function onEvent(e: GameEvent) {
     case 'clank': sfx.clank(); vibrate(25); break;
     case 'state': refreshUI(); break;
     case 'roundEnd':
-      if (!e.won) { sfx.lose(); toast(['没抓住', '滑掉了', '差一点'][Math.floor(Math.random() * 3)], true, 1.6); }
+      if (!e.won) {
+        sfx.lose();
+        if (held && heldNear) toast('差一点！', 'miss', '就差一点点掉进出口', 1.9);
+        else if (held) toast('滑掉了', 'miss', '夹住了但没夹稳，再试一次', 1.9);
+        else toast('没抓住', 'miss', '试试对准娃娃的身体中间', 1.9);
+      }
+      held = null;
       refreshUI(); break;
   }
 }
@@ -432,6 +537,14 @@ function syncVisuals(dt: number, t: number) {
   const chase = 1.4 + 0.7 * Math.sin(t * 3.5) + (doorBlink > 0 ? 1.5 * Math.abs(Math.sin(t * 12)) : 0);
   M.ledStrip.emissiveIntensity = chase;
   M.tube.emissiveIntensity = 2.8 + Math.sin(t * 13.1) * 0.03;
+  // what the claw is carrying (for 抓住了 / 滑掉了 / 差一点 feedback)
+  const gs = game.state;
+  if (gs === 'hold' || gs === 'return' || gs === 'release' || gs === 'lift') {
+    let cur: Prize | null = null;
+    for (const p of game.prizes) { if (p.won) continue; const cs = contacts.get(p); if (cs && cs.length >= 2 && p.body.translation().y > h.y - 0.2 && h.y > 0.55) { cur = p; break; } }
+    if (cur) { held = cur; heldNear = false; if (!heldShown && gs !== 'lift') { heldShown = true; sfx.click(); vibrate(20); toast('抓住了！', 'ok', '稳住…送往出口', 1.6); } }
+    else if (held && !held.won) { const tp = held.body.translation(); heldNear = heldNear || (tp.x < HOLE.x1 + 0.12 && tp.z > HOLE.z0 - 0.12); }
+  }
   const showAim = game.state === 'play';
   aim.visible = showAim;
   if (showAim) { const sy = game.probeSurface(); aim.position.set(h.x, sy + 0.004, h.z); }
@@ -453,7 +566,7 @@ function frame(now: number) {
     timeLeft -= dt;
     const sec = Math.ceil(Math.max(0, timeLeft));
     ui.timer.textContent = String(sec);
-    if (sec <= 5 && sec !== lastTick) { lastTick = sec; $('timer').classList.add('warn'); sfx.tick(); }
+    if (sec <= 5 && sec !== lastTick) { if (lastTick > 5) toast('剩余 5 秒', 'warn', '快下爪！', 1.3); lastTick = sec; $('timer').classList.add('urgent'); $('timer').classList.remove('beat'); void $('timer').offsetWidth; $('timer').classList.add('beat'); sfx.tick(); vibrate(10); }
     if (timeLeft <= 0) doGrab();
   }
   acc += dt; let steps = 0;
@@ -486,7 +599,8 @@ function frame(now: number) {
   const sx = (Math.sin(tt * 0.71) + Math.sin(tt * 1.37 + 1) * 0.5) * 0.0025 * sway, sy = (Math.sin(tt * 0.53 + 2) + Math.sin(tt * 1.13) * 0.4) * 0.0018 * sway;
   camera.position.x += sx; camera.position.y += sy;
   syncVisuals(dt, now / 1000);
-  if (toastT > 0) { toastT -= dt; if (toastT <= 0) ui.toast.classList.remove('show'); }
+  if (toastT > 0) { toastT -= dt; if (toastT <= 0) dropToast(); }
+  renderPreview(now / 1000);
   if (grain) grain.uniforms.uT.value = (now / 1000) % 100;
   if (composer) composer.render(); else renderer.render(scene, camera);
   perf.cpu.push(performance.now() - t0); if (perf.cpu.length > 240) perf.cpu.shift();
@@ -496,7 +610,7 @@ function frame(now: number) {
     fpsAcc += dt; fpsN++;
     if (fpsAcc > 3) {
       const fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;
-      if (fps < 42 && quality > 0) { quality--; applyQuality(); toast(`已自动切换画质: ${QUALITY[quality]}`, true, 1.4); }
+      if (fps < 42 && quality > 0) { quality--; applyQuality(); toast(`画质已调整为「${QUALITY[quality]}」`, 'info', '保持流畅运行', 1.6); }
       else autoQ = false;
     }
   }
@@ -516,7 +630,7 @@ async function boot() {
   bar.style.width = '80%'; txt.textContent = '正在编译着色器…';
   await new Promise((r) => setTimeout(r, 30));
   renderer.compile(scene, camera);
-  bar.style.width = '100%'; txt.textContent = '';
+  bar.style.width = '100%'; txt.textContent = '准备就绪';
   refreshUI();
   requestAnimationFrame(frame);
   $('start').classList.add('ready');
@@ -525,7 +639,9 @@ async function boot() {
     sfx.unlock(); sfx.click(); vibrate(20);
     $('start').classList.add('hide'); playStart = performance.now();
     intro = false; controls.enabled = true; document.body.classList.remove('intro'); goView(0);
+    if (!localStorage.getItem('claw_guide') && !params.has('noguide')) setTimeout(() => { showGuide(0); openModal('onboard'); }, 650);
+    refreshUI();
   });
-  (window as any).__claw = { perf, renderer, game, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, setTheme, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
+  (window as any).__claw = { perf, renderer, game, toast, openModal, closeModal, showGuide, insertCoin, doGrab, joy, camera, setQuality: (q: number) => { quality = q; applyQuality(); }, showWin, goDoor, setTheme, camBusy: () => !!camAnim || doorCam > 0, camAnimating: () => !!camAnim, setCam: (p: number[], t: number[]) => { camAnim = null; (window as any).__claw.closeup = true; camera.position.set(p[0], p[1], p[2]); camera.lookAt(t[0], t[1], t[2]); } };
 }
 boot().catch((e) => { console.error(e); $('loadTxt').textContent = '加载失败: ' + e; });

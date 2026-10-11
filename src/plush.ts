@@ -78,13 +78,13 @@ const MAT = {
   blush: new THREE.MeshStandardMaterial({ color: 0xd88f8c, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false }),
 };
 
-const sphere = new THREE.SphereGeometry(1, 32, 22);
+const sphere = new THREE.SphereGeometry(1, 24, 16);
 const sphereLo = new THREE.SphereGeometry(1, 14, 10);
-const cone = new THREE.ConeGeometry(1, 1, 18);
-const cyl = new THREE.CylinderGeometry(1, 1, 1, 22);
+const cone = new THREE.ConeGeometry(1, 1, 14);
+const cyl = new THREE.CylinderGeometry(1, 1, 1, 16);
 const box = new THREE.BoxGeometry(1, 1, 1);
 const smile = new THREE.TorusGeometry(0.0055, 0.0011, 5, 14, Math.PI);
-const capsule = (r: number, hh: number) => new THREE.CapsuleGeometry(r, hh * 2, 10, 24);
+const capsule = (r: number, hh: number) => new THREE.CapsuleGeometry(r, hh * 2, 6, 18);
 
 class Builder {
   parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
@@ -101,7 +101,7 @@ class Builder {
       const geo = mergeGeometries(geos);
       const mesh = new THREE.Mesh(geo, mat);
       const tr = (mat as THREE.MeshStandardMaterial).transparent;
-      mesh.castShadow = !tr; mesh.receiveShadow = !tr;
+      mesh.castShadow = !tr && !!mat.userData.plush; mesh.receiveShadow = !tr;
       grp.add(mesh);
       const furMat = furFor.get(mat);
       if (furMat) {

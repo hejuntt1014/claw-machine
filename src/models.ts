@@ -1,3 +1,4 @@
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CAB, HOLE, PRONG_PTS, PRONG_RADIUS, HUB_R, HUB_HH, CARRIAGE_Y } from './physics.ts';
@@ -268,7 +269,8 @@ const nbGeo = {
   glass: new THREE.PlaneGeometry(1.0, 1.2),
   lump: new THREE.SphereGeometry(0.042, 10, 8),
 };
-const lumpMats = [0x8b6a4f, 0xe8e3da, 0xdcb956, 0xdca69c, 0x46546a, 0xc9b394, 0xaaa5a0].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
+const lumpCols = [0xf2a7c0, 0xfff1d6, 0xf5d36a, 0x9fd8e8, 0xb9a6e8, 0xffffff, 0xf7b98a];
+const lumpMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
 
 function neighbourCabinet(accent: number, sign: string, x: number, ry: number) {
   const g = new THREE.Group(); g.position.set(x, 0, -0.02 + Math.abs(x) * 0.02); g.rotation.y = ry;
@@ -276,19 +278,24 @@ function neighbourCabinet(accent: number, sign: string, x: number, ry: number) {
   const acc = new THREE.MeshPhysicalMaterial({ color: accent, roughness: 0.3, clearcoat: 0.6 });
   const b = new THREE.Mesh(nbGeo.body, paint); b.position.y = -0.5; b.receiveShadow = true; g.add(b);
   const h = new THREE.Mesh(nbGeo.head, paint); h.position.y = 1.35; g.add(h);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const p = new THREE.Mesh(nbGeo.post, M.alu); p.position.set(sx * 0.525, 0.6, sz * 0.425); g.add(p); }
   // LED rim
   const led = new THREE.MeshStandardMaterial({ color: 0x111, emissive: accent, emissiveIntensity: 1.4 });
-  for (const sx of [-1, 1]) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.01, 1.15, 0.01), led); s.position.set(sx * 0.5, 0.6, 0.41); g.add(s); }
+  { const lg = mergeGeometries([new THREE.BoxGeometry(0.01, 1.15, 0.01).translate(-0.5, 0.6, 0.41), new THREE.BoxGeometry(0.01, 1.15, 0.01).translate(0.5, 0.6, 0.41)]); g.add(new THREE.Mesh(lg, led)); }
   const st = labelTexture(sign, '#fff', '#' + accent.toString(16).padStart(6, '0'), 512, 128, 'bold 84px "PingFang SC","Microsoft YaHei",sans-serif');
   const sm = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: st, emissive: 0xffffff, emissiveMap: st, emissiveIntensity: 0.85 })); sm.position.set(0, 1.36, 0.485); g.add(sm);
   const back = new THREE.Mesh(nbGeo.glass, new THREE.MeshStandardMaterial({ color: 0x000000, emissive: accent, emissiveIntensity: 0.25 })); back.position.set(0, 0.6, -0.4); g.add(back);
+  // background toys: one instanced draw per cabinet
+  const lumps = new THREE.InstancedMesh(nbGeo.lump, lumpMat, 28); const o = new THREE.Object3D(); const col = new THREE.Color();
   for (let i = 0; i < 28; i++) {
-    const l = new THREE.Mesh(nbGeo.lump, lumpMats[i % lumpMats.length]);
     const r = Math.sin(i * 12.9898 + x) * 43758.5453; const fr = r - Math.floor(r);
-    l.position.set(-0.4 + fr * 0.8, 0.04 + (i % 3) * 0.045 + fr * 0.03, -0.32 + ((i * 0.618) % 1) * 0.6);
-    l.scale.set(1 + (i % 3) * 0.2, 0.85 + (i % 2) * 0.25, 1 + fr * 0.3); g.add(l);
+    o.position.set(-0.4 + fr * 0.8, 0.04 + (i % 3) * 0.045 + fr * 0.03, -0.32 + ((i * 0.618) % 1) * 0.6);
+    o.scale.set(1 + (i % 3) * 0.2, 0.85 + (i % 2) * 0.25, 1 + fr * 0.3); o.updateMatrix();
+    lumps.setMatrixAt(i, o.matrix); lumps.setColorAt(i, col.setHex(lumpCols[i % lumpCols.length]));
   }
+  g.add(lumps);
+  const posts = new THREE.InstancedMesh(nbGeo.post, M.alu, 4); let k = 0;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { o.position.set(sx * 0.525, 0.6, sz * 0.425); o.scale.set(1, 1, 1); o.updateMatrix(); posts.setMatrixAt(k++, o.matrix); }
+  g.add(posts);
   const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.8), new THREE.MeshStandardMaterial({ color: 0x3a4a62, roughness: 1 })); fl.rotation.x = -Math.PI / 2; fl.position.y = 0.002; g.add(fl);
   const tube = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.012, 0.012), M.tube); tube.position.set(0, 1.17, 0.36); g.add(tube);
   const gl = new THREE.Mesh(nbGeo.glass, M.glassRefl); gl.position.set(0, 0.6, 0.41); gl.renderOrder = 4; g.add(gl);
