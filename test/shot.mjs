@@ -8,7 +8,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push('[pageerror] ' + e.message));
-await page.goto(url, { waitUntil: 'load' });
+await page.goto(url + (url.includes('?') ? '&' : '?') + 'noguide', { waitUntil: 'load' });
 await page.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 90000 });
 await page.screenshot({ path: `screenshots/${P}0-start.png` });
 const tap = (sel) => TOUCH ? page.tap(sel, { force: true }) : page.click(sel, { force: true });

@@ -8,7 +8,7 @@ page.setDefaultTimeout(240000);
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push('[pageerror] ' + e.message));
-await page.goto(url);
+await page.goto(url + (url.includes('?') ? '&' : '?') + 'noguide');
 await page.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 120000 });
 await page.tap('#go', { force: true });
 await page.waitForTimeout(5000);

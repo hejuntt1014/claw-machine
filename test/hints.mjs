@@ -5,7 +5,7 @@ const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome'
 const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, hasTouch: TOUCH, isMobile: TOUCH });
 const page = await ctx.newPage(); const errs = [];
 page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); }); page.on('pageerror', (e) => errs.push(String(e)));
-const shot = async (n, clip) => { await page.waitForTimeout(350); await page.screenshot({ path: `shots/hints/${P}-${n}.png`, clip }); console.log('shot', n); };
+const shot = async (n, clip) => { await page.waitForTimeout(350); await page.screenshot({ path: `screenshots/hints/${P}-${n}.png`, clip }); console.log('shot', n); };
 const box = async (sel, pad = 14) => { const b = await page.locator(sel).first().boundingBox(); return { x: Math.max(0, b.x - pad), y: Math.max(0, b.y - pad), width: Math.min(W, b.width + pad * 2), height: b.height + pad * 2 }; };
 const topClip = { x: 0, y: 0, width: W, height: Math.min(H, 220) };
 await page.goto(url); await page.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 120000 });
